@@ -6,7 +6,7 @@ A Telegram bot built with Kotlin and Spring Boot that automatically summarizes d
 
 - **Automatic Message Tracking**: Saves text messages from chats where the bot is a member.
 - **On-Demand Summary**: Generate a summary of today's messages using the `/summary` command.
-- **Scheduled Daily Summary**: Automatically sends a summary at a configured time (default: 21:00) and clears the day's history.
+- **Scheduled Summaries**: Automatically sends a summary at a configured time (default: 21:00) and clears the day's history. Each chat can configure its own schedule.
 - **AI-Powered**: Uses Google Gemini (e.g., `gemini-2.5-flash`) for high-quality, concise summaries.
 - **Admin Notifications**: Alerts an administrator in case of failures.
 
@@ -61,6 +61,7 @@ java -jar build/libs/ChatSummaryBot-1.0.0.jar
 ## Commands
 
 - `/summary`: Generates and sends a summary of all messages recorded today in the current chat.
+- `/setcron <cron>`: Sets a custom summary schedule for the current chat (e.g., `/setcron 0 0 21 * * *`). Uses Spring's 6-field cron expression (seconds minutes hours day month day-of-week).
 
 ## License
 

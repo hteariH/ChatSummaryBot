@@ -1,9 +1,11 @@
 package com.chatsummary.bot.telegram
 
+import com.chatsummary.bot.service.ChatConfigService
 import com.chatsummary.bot.service.GeminiSummaryService
 import com.chatsummary.bot.service.MessageService
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.scheduling.support.CronExpression
 import org.springframework.stereotype.Component
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer
@@ -17,7 +19,8 @@ class ChatSummaryBot(
     @param:Value("\${telegram.bot.token}") private val botToken: String,
     @param:Value("\${summary.admin-chat-id}") private val adminChatId: Long,
     private val messageService: MessageService,
-    private val geminiSummaryService: GeminiSummaryService
+    private val geminiSummaryService: GeminiSummaryService,
+    private val chatConfigService: ChatConfigService
 ) : SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
     private val log = LoggerFactory.getLogger(ChatSummaryBot::class.java)
@@ -46,9 +49,38 @@ class ChatSummaryBot(
             return
         }
 
+        // Handle /setcron command
+        if (text.startsWith("/setcron")) {
+            handleSetCronCommand(chatId, text)
+            return
+        }
+
         // Save regular message (skip other bot commands)
         if (!text.startsWith("/")) {
             messageService.saveMessage(chatId, senderName, text)
+        }
+    }
+
+    private fun handleSetCronCommand(chatId: Long, text: String) {
+        val parts = text.split(" ", limit = 2)
+        if (parts.size < 2) {
+            sendMessage(chatId, "⚠️ Usage: `/setcron 0 0 21 * * *` (seconds minutes hours day month day-of-week)")
+            return
+        }
+
+        val cron = parts[1].trim()
+        if (!CronExpression.isValidExpression(cron)) {
+            sendMessage(chatId, "⚠️ Invalid cron expression. Please use the Spring/Quartz format: `sec min hour day month dow`.")
+            return
+        }
+
+        try {
+            chatConfigService.saveChatConfig(chatId, cron)
+            sendMessage(chatId, "✅ Summary schedule updated to: `$cron`")
+            log.info("Updated cron for chat {}: {}", chatId, cron)
+        } catch (e: Exception) {
+            log.error("Failed to save cron for chat {}", chatId, e)
+            sendMessage(chatId, "⚠️ Failed to save cron. Please try again.")
         }
     }
 
