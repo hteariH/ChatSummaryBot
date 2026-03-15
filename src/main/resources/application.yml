@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: ChatSummaryBot
+  mongodb:
+    uri: mongodb://localhost:27017/chatsummarybot
+
+# Telegram Bot
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN}
+    username: ${TELEGRAM_BOT_USERNAME}
+
+# Gemini API
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: ${GEMINI_MODEL:gemini-2.5-flash}
+  retry:
+    max-attempts: ${GEMINI_RETRY_MAX_ATTEMPTS:3}
+    delay: ${GEMINI_RETRY_DELAY:1000}
+
+# Summary scheduler (default: daily at 21:00)
+summary:
+  cron: ${SUMMARY_CRON:0 0 21 * * *}
+  admin-chat-id: ${ADMIN_CHAT_ID:123616664}
