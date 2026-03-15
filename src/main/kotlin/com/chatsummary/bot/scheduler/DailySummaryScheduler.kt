@@ -35,7 +35,7 @@ class DailySummaryScheduler(
         for (chatId in activeChatIds) {
             val config = chatConfigService.getChatConfig(chatId)
             val cron = CronExpression.parse(config.cron)
-            
+            log.debug("Checking chat {} for scheduled summary (cron: {})", chatId, config.cron)
             // Check if it's time to run (matches current minute)
             if (cron.next(now.minusSeconds(1))?.truncatedTo(ChronoUnit.MINUTES)?.isEqual(now) == true) {
                 processSummary(chatId)

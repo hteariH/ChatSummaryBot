@@ -41,7 +41,7 @@ class MessageService(
     }
 
     fun getAllActiveChatIds(): Set<Long> {
-        return chatMessageRepository.findAllDistinctChatIds()
+        return chatMessageRepository.findAllChatIds()
             .map { it.chatId }
             .toSet()
     }
