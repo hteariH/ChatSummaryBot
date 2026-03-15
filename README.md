@@ -29,6 +29,7 @@ The bot can be configured via environment variables or a `.env` file:
 | `GEMINI_MODEL` | Gemini model to use | `gemini-2.5-flash` |
 | `SUMMARY_CRON` | Cron expression for daily summary | `0 0 21 * * *` |
 | `ADMIN_CHAT_ID` | Telegram Chat ID for error alerts | (Required) |
+| `LOKI_URL` | URL of the Grafana Loki push endpoint | (Optional) |
 | `SPRING_MONGODB_URI` | MongoDB Connection URI | `mongodb://localhost:27017/chatsummarybot` |
 
 ## Getting Started

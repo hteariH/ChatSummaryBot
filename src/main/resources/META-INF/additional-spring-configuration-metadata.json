@@ -14,5 +14,10 @@
       "name": "telegram.bot.username",
       "type": "java.lang.String",
       "description": "Description for telegram.bot.username."
+    },
+    {
+      "name": "logging.loki.url",
+      "type": "java.lang.String",
+      "description": "Description for logging.loki.url."
     }
   ] }

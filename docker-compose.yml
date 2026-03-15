@@ -14,6 +14,7 @@ services:
       - SPRING_MONGODB_URI=mongodb://mongodb:27017/chatsummarybot
       - SUMMARY_CRON=${SUMMARY_CRON:-0 0 21 * * *}
       - ADMIN_CHAT_ID=${ADMIN_CHAT_ID}
+      - LOKI_URL=${LOKI_URL}
     networks:
       - bot-network
 

@@ -24,6 +24,11 @@ summary:
   admin-chat-id: ${ADMIN_CHAT_ID}
 
 logging:
+  loki:
+    url: ${LOKI_URL:}
   level:
-    root: INFO
+    root: DEBUG
     com.chatsummary: DEBUG
+    org.springframework: INFO
+    org.mongodb: INFO
+    org.telegram: INFO
