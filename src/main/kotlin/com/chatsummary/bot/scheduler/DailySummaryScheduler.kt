@@ -13,7 +13,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.temporal.ChronoUnit
 
 @Component
 class DailySummaryScheduler(
@@ -25,7 +24,7 @@ class DailySummaryScheduler(
 ) {
     private val log = LoggerFactory.getLogger(DailySummaryScheduler::class.java)
 
-    @Scheduled(fixedRate = 60000) // Check every minute
+    @Scheduled(fixedRate = 300000) // Check every 5 minutes
     fun sendScheduledSummaries() {
         log.debug("Checking for scheduled summaries...")
 
