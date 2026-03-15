@@ -3,6 +3,7 @@ package com.chatsummary.bot.model
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.core.mapping.Document
 import org.springframework.data.mongodb.core.index.Indexed
+import java.time.Instant
 
 @Document(collection = "chat_configs")
 data class ChatConfig(
@@ -12,5 +13,7 @@ data class ChatConfig(
     @Indexed(unique = true)
     val chatId: Long,
 
-    var cron: String
+    var cron: String,
+
+    var lastProcessedAt: Instant? = null
 )

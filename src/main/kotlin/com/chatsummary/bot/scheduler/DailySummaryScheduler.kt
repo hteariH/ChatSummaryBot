@@ -10,6 +10,8 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.scheduling.support.CronExpression
 import org.springframework.stereotype.Component
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 
@@ -27,7 +29,7 @@ class DailySummaryScheduler(
     fun sendScheduledSummaries() {
         log.debug("Checking for scheduled summaries...")
 
-        val now = ZonedDateTime.now().truncatedTo(ChronoUnit.MINUTES)
+        val now = ZonedDateTime.now()
         val activeChatIds = messageService.getAllActiveChatIds()
         
         if (activeChatIds.isEmpty()) return
@@ -35,10 +37,21 @@ class DailySummaryScheduler(
         for (chatId in activeChatIds) {
             val config = chatConfigService.getChatConfig(chatId)
             val cron = CronExpression.parse(config.cron)
-            log.debug("Checking chat {} for scheduled summary (cron: {})", chatId, config.cron)
-            // Check if it's time to run (matches current minute)
-            if (cron.next(now.minusSeconds(1))?.truncatedTo(ChronoUnit.MINUTES)?.isEqual(now) == true) {
+            
+            // Determine the start point for checking missed summaries
+            // If never processed, start from beginning of today
+            val lastProcessed = config.lastProcessedAt?.atZone(ZoneId.systemDefault())
+                ?: LocalDate.now().atStartOfDay(ZoneId.systemDefault())
+
+            log.debug("Checking chat {} for scheduled summary (last processed: {}, cron: {})", chatId, lastProcessed, config.cron)
+
+            // Find the next scheduled execution time after the last processed time
+            val nextExecution = cron.next(lastProcessed)
+
+            // If the next execution time is in the past or is exactly now (truncated to minutes), process it
+            if (nextExecution != null && !nextExecution.isAfter(now)) {
                 processSummary(chatId)
+                chatConfigService.updateLastProcessedAt(chatId, now.toInstant())
             }
         }
     }

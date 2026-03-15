@@ -2,6 +2,7 @@ package com.chatsummary.bot.service
 
 import com.chatsummary.bot.model.ChatConfig
 import com.chatsummary.bot.repository.ChatConfigRepository
+import java.time.Instant
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 
@@ -18,6 +19,12 @@ class ChatConfigService(
         val config = chatConfigRepository.findByChatId(chatId) ?: ChatConfig(chatId = chatId, cron = cron)
         config.cron = cron
         return chatConfigRepository.save(config)
+    }
+
+    fun updateLastProcessedAt(chatId: Long, timestamp: Instant) {
+        val config = getChatConfig(chatId)
+        config.lastProcessedAt = timestamp
+        chatConfigRepository.save(config)
     }
 
     fun getAllConfigs(): List<ChatConfig> {
