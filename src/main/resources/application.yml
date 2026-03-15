@@ -29,8 +29,8 @@ logging:
     username: ${LOKI_USERNAME:}
     password: ${LOKI_PASSWORD:}
   level:
-    root: DEBUG
-    com.chatsummary: DEBUG
+    root: INFO
+    com.chatsummary: INFO
     org.springframework: INFO
     org.mongodb: INFO
     org.telegram: INFO
