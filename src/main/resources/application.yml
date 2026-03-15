@@ -22,3 +22,8 @@ gemini:
 summary:
   cron: ${SUMMARY_CRON:0 0 21 * * *}
   admin-chat-id: ${ADMIN_CHAT_ID}
+
+logging:
+  level:
+    root: INFO
+    com.chatsummary: DEBUG
