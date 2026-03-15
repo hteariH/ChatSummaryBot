@@ -43,6 +43,8 @@ class GeminiSummaryService(
             |You are a helpful assistant that summarizes group chat conversations.
             |Below is a transcript of today's group chat messages.
             |
+            |When answering prioritize language of the provided transcript, preferring Russian over any other languages.
+            |
             |Please provide a concise, well-structured summary that:
             |1. Highlights the main topics discussed
             |2. Notes any decisions made or action items
