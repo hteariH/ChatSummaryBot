@@ -26,6 +26,8 @@ summary:
 logging:
   loki:
     url: ${LOKI_URL:}
+    username: ${LOKI_USERNAME:}
+    password: ${LOKI_PASSWORD:}
   level:
     root: DEBUG
     com.chatsummary: DEBUG

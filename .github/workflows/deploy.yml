@@ -39,6 +39,8 @@ jobs:
             SUMMARY_CRON=${{ secrets.SUMMARY_CRON }}
             ADMIN_CHAT_ID=${{ secrets.ADMIN_CHAT_ID }}
             LOKI_URL=${{ secrets.LOKI_URL }}
+            LOKI_USERNAME=${{ secrets.LOKI_USERNAME }}
+            LOKI_PASSWORD=${{ secrets.LOKI_PASSWORD }}
             EOF
 
             # Build and restart

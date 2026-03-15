@@ -5,6 +5,8 @@
 
     <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="ChatSummaryBot" />
     <springProperty scope="context" name="lokiUrl" source="logging.loki.url" />
+    <springProperty scope="context" name="lokiUsername" source="logging.loki.username" />
+    <springProperty scope="context" name="lokiPassword" source="logging.loki.password" />
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -16,6 +18,10 @@
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
             <url>${lokiUrl}</url>
+            <auth>
+                <username>${lokiUsername}</username>
+                <password>${lokiPassword}</password>
+            </auth>
         </http>
         <format>
             <label>
