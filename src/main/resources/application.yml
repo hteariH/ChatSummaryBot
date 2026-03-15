@@ -21,4 +21,4 @@ gemini:
 # Summary scheduler (default: daily at 21:00)
 summary:
   cron: ${SUMMARY_CRON:0 0 21 * * *}
-  admin-chat-id: ${ADMIN_CHAT_ID:123616664}
+  admin-chat-id: ${ADMIN_CHAT_ID}

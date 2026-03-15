@@ -37,6 +37,7 @@ jobs:
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
             GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}
             SUMMARY_CRON=${{ secrets.SUMMARY_CRON }}
+            ADMIN_CHAT_ID=${{ secrets.ADMIN_CHAT_ID }}
             EOF
 
             # Build and restart
