@@ -5,8 +5,6 @@ import com.chatsummary.bot.repository.ChatMessageRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 
 @Service
 class MessageService(
@@ -22,13 +20,6 @@ class MessageService(
         )
         chatMessageRepository.save(message)
         log.debug("Saved message from '{}' in chat {}", senderName, chatId)
-    }
-
-    fun getTodayMessages(chatId: Long): List<ChatMessage> {
-        val startOfDay = LocalDate.now()
-            .atStartOfDay(ZoneId.systemDefault())
-            .toInstant()
-        return chatMessageRepository.findByChatIdAndTimestampAfter(chatId, startOfDay)
     }
 
     fun getMessagesSince(chatId: Long, since: Instant): List<ChatMessage> {

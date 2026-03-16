@@ -1,5 +1,6 @@
 package com.chatsummary.bot.telegram
 
+import com.chatsummary.bot.service.AdminNotificationService
 import com.chatsummary.bot.service.ChatConfigService
 import com.chatsummary.bot.service.GeminiSummaryService
 import com.chatsummary.bot.service.MessageService
@@ -13,14 +14,17 @@ import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Component
 class ChatSummaryBot(
     @param:Value("\${telegram.bot.token}") private val botToken: String,
-    @param:Value("\${summary.admin-chat-id}") private val adminChatId: Long,
     private val messageService: MessageService,
     private val geminiSummaryService: GeminiSummaryService,
-    private val chatConfigService: ChatConfigService
+    private val chatConfigService: ChatConfigService,
+    private val adminNotificationService: AdminNotificationService
 ) : SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
     private val log = LoggerFactory.getLogger(ChatSummaryBot::class.java)
@@ -86,21 +90,24 @@ class ChatSummaryBot(
 
     private fun handleSummaryCommand(chatId: Long) {
         try {
-            val messages = messageService.getTodayMessages(chatId)
+            val config = chatConfigService.getChatConfig(chatId)
+            val since = config.lastProcessedAt ?: LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
+            val messages = messageService.getMessagesSince(chatId, since)
 
             if (messages.isEmpty()) {
-                sendMessage(chatId, "📭 No messages recorded today. Nothing to summarize!")
+                sendMessage(chatId, "📭 No new messages since last summary. Nothing to summarize!")
                 return
             }
 
             sendMessage(chatId, "⏳ Generating summary of ${messages.size} messages...")
 
             val summary = geminiSummaryService.summarize(messages)
-            sendMessage(chatId, "📋 *Daily Summary*\n\n$summary")
+            sendMessage(chatId, "📋 *Summary*\n\n$summary")
+            chatConfigService.updateLastProcessedAt(chatId, Instant.now())
         } catch (e: Exception) {
             log.error("Error handling /summary command for chat {}", chatId, e)
             sendMessage(chatId, "⚠️ Sorry, failed to generate summary. Please try again later.")
-            notifyAdminOnFailure(chatId, "Summary generation (/summary command)", e)
+            adminNotificationService.notifyOnFailure(chatId, "Summary generation (/summary command)", e)
         }
     }
 
@@ -114,16 +121,5 @@ class ChatSummaryBot(
         } catch (e: Exception) {
             log.error("Failed to send message to chat {}", chatId, e)
         }
-    }
-
-    private fun notifyAdminOnFailure(chatId: Long, operation: String, e: Exception) {
-        if (chatId == adminChatId) return // Avoid loop or redundant message
-        val errorMsg = """
-            🚨 *Failure Alert*
-            *Operation:* $operation
-            *Chat ID:* $chatId
-            *Error:* ${e.message ?: "Unknown error"}
-        """.trimIndent()
-        sendMessage(adminChatId, errorMsg)
     }
 }

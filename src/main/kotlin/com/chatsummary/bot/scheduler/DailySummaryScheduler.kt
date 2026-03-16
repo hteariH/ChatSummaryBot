@@ -1,11 +1,11 @@
 package com.chatsummary.bot.scheduler
 
+import com.chatsummary.bot.service.AdminNotificationService
 import com.chatsummary.bot.service.ChatConfigService
 import com.chatsummary.bot.service.GeminiSummaryService
 import com.chatsummary.bot.service.MessageService
 import com.chatsummary.bot.telegram.ChatSummaryBot
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.scheduling.support.CronExpression
 import org.springframework.stereotype.Component
@@ -16,11 +16,11 @@ import java.time.ZonedDateTime
 
 @Component
 class DailySummaryScheduler(
-    @param:Value("\${summary.admin-chat-id}") private val adminChatId: Long,
     private val messageService: MessageService,
     private val geminiSummaryService: GeminiSummaryService,
     private val chatSummaryBot: ChatSummaryBot,
-    private val chatConfigService: ChatConfigService
+    private val chatConfigService: ChatConfigService,
+    private val adminNotificationService: AdminNotificationService
 ) {
     private val log = LoggerFactory.getLogger(DailySummaryScheduler::class.java)
 
@@ -39,50 +39,40 @@ class DailySummaryScheduler(
             
             // Determine the start point for checking missed summaries
             // If never processed, start from beginning of today
-            val lastProcessed = config.lastProcessedAt?.atZone(ZoneId.systemDefault())
-                ?: LocalDate.now().atStartOfDay(ZoneId.systemDefault())
+            val lastProcessedInstant = config.lastProcessedAt ?: LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
+            val lastProcessedZdt = lastProcessedInstant.atZone(ZoneId.systemDefault())
 
-            log.debug("Checking chat {} for scheduled summary (last processed: {}, cron: {})", chatId, lastProcessed, config.cron)
+            log.debug("Checking chat {} for scheduled summary (last processed: {}, cron: {})", chatId, lastProcessedZdt, config.cron)
 
             // Find the next scheduled execution time after the last processed time
-            val nextExecution = cron.next(lastProcessed)
+            val nextExecution = cron.next(lastProcessedZdt)
 
             // If the next execution time is in the past or is exactly now (truncated to minutes), process it
             if (nextExecution != null && !nextExecution.isAfter(now)) {
-                processSummary(chatId)
+                processSummary(chatId, lastProcessedInstant)
                 chatConfigService.updateLastProcessedAt(chatId, now.toInstant())
             }
         }
     }
 
-    private fun processSummary(chatId: Long) {
+    private fun processSummary(chatId: Long, since: Instant) {
         try {
-            val messages = messageService.getTodayMessages(chatId)
+            val messages = messageService.getMessagesSince(chatId, since)
             if (messages.isEmpty()) {
-                log.info("No messages today for chat {}, skipping scheduled summary.", chatId)
+                log.info("No new messages for chat {} since {}, skipping scheduled summary.", chatId, since)
                 return
             }
 
-            log.info("Sending scheduled summary for chat {}...", chatId)
+            log.info("Sending scheduled summary for chat {} since {}...", chatId, since)
             val summary = geminiSummaryService.summarize(messages)
-            chatSummaryBot.sendMessage(chatId, "📋 *End-of-Day Summary*\n\n$summary")
+            chatSummaryBot.sendMessage(chatId, "📋 *Summary*\n\n$summary")
 
             // Clear old messages after summary is sent
             messageService.clearOldMessages(chatId, Instant.now())
             log.info("Sent scheduled summary to chat {} ({} messages)", chatId, messages.size)
         } catch (e: Exception) {
             log.error("Failed to send scheduled summary for chat {}", chatId, e)
-            notifyAdminOnFailure(chatId, "Scheduled Summary", e)
+            adminNotificationService.notifyOnFailure(chatId, "Scheduled Summary", e, isScheduled = true)
         }
-    }
-
-    private fun notifyAdminOnFailure(chatId: Long, operation: String, e: Exception) {
-        val errorMsg = """
-            🚨 *Failure Alert (Scheduled)*
-            *Operation:* $operation
-            *Chat ID:* $chatId
-            *Error:* ${e.message ?: "Unknown error"}
-        """.trimIndent()
-        chatSummaryBot.sendMessage(adminChatId, errorMsg)
     }
 }
