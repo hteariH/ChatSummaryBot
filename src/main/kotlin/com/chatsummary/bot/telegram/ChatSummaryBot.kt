@@ -20,7 +20,7 @@ import java.time.ZoneId
 
 @Component
 class ChatSummaryBot(
-    @param:Value("\${telegram.bot.token}") private val botToken: String,
+    @param:Value($$"${telegram.bot.token}") private val botToken: String,
     private val messageService: MessageService,
     private val geminiSummaryService: GeminiSummaryService,
     private val chatConfigService: ChatConfigService,
