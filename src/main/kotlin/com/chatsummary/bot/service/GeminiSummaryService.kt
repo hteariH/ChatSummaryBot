@@ -26,7 +26,7 @@ class GeminiSummaryService(
 
     @Retryable(
         value = [Exception::class],
-        maxAttemptsExpression = $$"${gemini.retry.max-attempts:3}",
+        maxAttemptsExpression = $$"${gemini.retry.max-attempts:5}",
         backoff = Backoff(delayExpression = $$"${gemini.retry.delay:1000}")
     )
     fun summarize(messages: List<ChatMessage>): String {
@@ -51,7 +51,7 @@ class GeminiSummaryService(
             |4. Uses bullet points for clarity
             |5. Keeps it concise but informative
             |
-            |Format the summary nicely for Telegram (use plain text with emojis for readability, no markdown).
+            |Format the summary nicely for Telegram (use plain text with emojis for readability and structure, no markdown).
             |
             |--- Chat Transcript ---
             |$conversationText

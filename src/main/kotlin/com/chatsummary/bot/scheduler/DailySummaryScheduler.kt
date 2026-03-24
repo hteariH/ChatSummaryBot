@@ -49,19 +49,20 @@ class DailySummaryScheduler(
 
             // If the next execution time is in the past or is exactly now (truncated to minutes), process it
             if (nextExecution != null && !nextExecution.isAfter(now)) {
-                processSummary(chatId, lastProcessedInstant)
-                chatConfigService.updateLastProcessedAt(chatId, now.toInstant())
+                if (processSummary(chatId, lastProcessedInstant)) {
+                    chatConfigService.updateLastProcessedAt(chatId, now.toInstant())
+                }
                 Thread.sleep(1000*60) // Sleep for 1 minute before checking the next chat to not overload the gemini API
             }
         }
     }
 
-    private fun processSummary(chatId: Long, since: Instant) {
+    private fun processSummary(chatId: Long, since: Instant): Boolean {
         try {
             val messages = messageService.getMessagesSince(chatId, since)
             if (messages.isEmpty()) {
                 log.info("No new messages for chat {} since {}, skipping scheduled summary.", chatId, since)
-                return
+                return true
             }
 
             log.info("Sending scheduled summary for chat {} since {}...", chatId, since)
@@ -71,9 +72,11 @@ class DailySummaryScheduler(
             // Clear old messages after summary is sent
             messageService.clearOldMessages(chatId, Instant.now())
             log.info("Sent scheduled summary to chat {} ({} messages)", chatId, messages.size)
+            return true
         } catch (e: Exception) {
             log.error("Failed to send scheduled summary for chat {}", chatId, e)
             adminNotificationService.notifyOnFailure(chatId, "Scheduled Summary", e, isScheduled = true)
+            return false
         }
     }
 }
