@@ -52,7 +52,7 @@ class DailySummaryScheduler(
                 if (processSummary(chatId, lastProcessedInstant)) {
                     chatConfigService.updateLastProcessedAt(chatId, now.toInstant())
                 }
-                Thread.sleep(1000*60) // Sleep for 1 minute before checking the next chat to not overload the gemini API
+                Thread.sleep(2000*60) // Sleep for 2 minute before checking the next chat to not overload the gemini API
             }
         }
     }
