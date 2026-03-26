@@ -51,8 +51,9 @@ class GeminiSummaryService(
             |4. Uses bullet points for clarity
             |5. Keeps it concise but informative
             |
-            |Format the summary nicely for Telegram (use plain text with emojis for readability and structure, no markdown).
+            |Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
             |
+            |Negative prompt: markdown, HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
             |--- Chat Transcript ---
             |$conversationText
             |--- End of Transcript ---
