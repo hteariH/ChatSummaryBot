@@ -1,33 +1,36 @@
 package com.chatsummary.bot.service
 
 import com.chatsummary.bot.model.ChatConfig
-import com.chatsummary.bot.repository.ChatConfigRepository
+import jakarta.enterprise.context.ApplicationScoped
+import org.eclipse.microprofile.config.inject.ConfigProperty
 import java.time.Instant
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.stereotype.Service
 
-@Service
-class ChatConfigService(
-    private val chatConfigRepository: ChatConfigRepository,
-    @Value("\${summary.cron}") private val defaultCron: String
-) {
-    fun getChatConfig(chatId: Long): ChatConfig {
-        return chatConfigRepository.findByChatId(chatId) ?: ChatConfig(chatId = chatId, cron = defaultCron)
-    }
+@ApplicationScoped
+class ChatConfigService {
+
+    @ConfigProperty(name = "summary.cron")
+    lateinit var defaultCron: String
+
+    fun getChatConfig(chatId: Long): ChatConfig =
+        ChatConfig.findByChatId(chatId) ?: ChatConfig().apply {
+            this.chatId = chatId
+            this.cron = defaultCron
+        }
 
     fun saveChatConfig(chatId: Long, cron: String): ChatConfig {
-        val config = chatConfigRepository.findByChatId(chatId) ?: ChatConfig(chatId = chatId, cron = cron)
+        val config = ChatConfig.findByChatId(chatId) ?: ChatConfig().apply {
+            this.chatId = chatId
+        }
         config.cron = cron
-        return chatConfigRepository.save(config)
+        config.persistOrUpdate()
+        return config
     }
 
     fun updateLastProcessedAt(chatId: Long, timestamp: Instant) {
         val config = getChatConfig(chatId)
         config.lastProcessedAt = timestamp
-        chatConfigRepository.save(config)
+        config.persistOrUpdate()
     }
 
-    fun getAllConfigs(): List<ChatConfig> {
-        return chatConfigRepository.findAll()
-    }
+    fun getAllConfigs(): List<ChatConfig> = ChatConfig.listAll()
 }

@@ -1,16 +1,20 @@
 package com.chatsummary.bot.telegram
 
 import com.chatsummary.bot.service.AdminNotificationService
+import com.chatsummary.bot.service.BotMessageSender
 import com.chatsummary.bot.service.ChatConfigService
 import com.chatsummary.bot.service.GeminiSummaryService
 import com.chatsummary.bot.service.MessageService
+import com.cronutils.model.CronType
+import com.cronutils.model.definition.CronDefinitionBuilder
+import com.cronutils.parser.CronParser
+import io.quarkus.runtime.StartupEvent
+import jakarta.enterprise.context.ApplicationScoped
+import jakarta.enterprise.event.Observes
+import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.scheduling.support.CronExpression
-import org.springframework.stereotype.Component
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
-import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer
-import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot
+import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
@@ -18,27 +22,33 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-@Component
+@ApplicationScoped
 class ChatSummaryBot(
-    @param:Value($$"${telegram.bot.token}") private val botToken: String,
     private val messageService: MessageService,
     private val geminiSummaryService: GeminiSummaryService,
     private val chatConfigService: ChatConfigService,
     private val adminNotificationService: AdminNotificationService
-) : SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
+) : BotMessageSender, LongPollingSingleThreadUpdateConsumer {
 
     private val log = LoggerFactory.getLogger(ChatSummaryBot::class.java)
-    private val telegramClient = OkHttpTelegramClient(botToken)
 
-    override fun getBotToken(): String = botToken
+    @ConfigProperty(name = "telegram.bot.token")
+    lateinit var botToken: String
 
-    override fun getUpdatesConsumer(): LongPollingUpdateConsumer = this
+    private lateinit var telegramClient: OkHttpTelegramClient
+    private lateinit var botsApplication: TelegramBotsLongPollingApplication
+
+    fun onStart(@Observes event: StartupEvent) {
+        telegramClient = OkHttpTelegramClient(botToken)
+        botsApplication = TelegramBotsLongPollingApplication()
+        botsApplication.registerBot(botToken, this)
+        log.info("ChatSummaryBot started and registered for long polling")
+    }
 
     override fun consume(update: Update) {
         if (!update.hasMessage()) return
         val message = update.message
 
-        // Only process text messages
         if (!message.hasText()) return
 
         val chatId = message.chatId
@@ -47,21 +57,10 @@ class ChatSummaryBot(
             listOfNotNull(user.firstName, user.lastName).joinToString(" ").ifBlank { user.userName ?: "Unknown" }
         } ?: "Unknown"
 
-        // Handle /summary command
-        if (text.startsWith("/summary")) {
-            handleSummaryCommand(chatId)
-            return
-        }
-
-        // Handle /setcron command
-        if (text.startsWith("/setcron")) {
-            handleSetCronCommand(chatId, text)
-            return
-        }
-
-        // Save regular message (skip other bot commands)
-        if (!text.startsWith("/")) {
-            messageService.saveMessage(chatId, senderName, text)
+        when {
+            text.startsWith("/summary") -> handleSummaryCommand(chatId)
+            text.startsWith("/setcron") -> handleSetCronCommand(chatId, text)
+            !text.startsWith("/") -> messageService.saveMessage(chatId, senderName, text)
         }
     }
 
@@ -73,7 +72,7 @@ class ChatSummaryBot(
         }
 
         val cron = parts[1].trim()
-        if (!CronExpression.isValidExpression(cron)) {
+        if (!isValidCronExpression(cron)) {
             sendMessage(chatId, "⚠️ Invalid cron expression. Please use the Spring/Quartz format: `sec min hour day month dow`.")
             return
         }
@@ -111,15 +110,28 @@ class ChatSummaryBot(
         }
     }
 
-    fun sendMessage(chatId: Long, text: String) {
+    override fun sendMessage(chatId: Long, text: String) {
         try {
-            val message = SendMessage.builder()
+            val msg = SendMessage.builder()
                 .chatId(chatId.toString())
                 .text(text)
                 .build()
-            telegramClient.execute(message)
+            telegramClient.execute(msg)
         } catch (e: Exception) {
             log.error("Failed to send message to chat {}", chatId, e)
+        }
+    }
+
+    private val cronParser = CronParser(
+        CronDefinitionBuilder.instanceDefinitionFor(CronType.SPRING)
+    )
+
+    private fun isValidCronExpression(cron: String): Boolean {
+        return try {
+            cronParser.parse(cron)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 }

@@ -1,22 +1,26 @@
 package com.chatsummary.bot.model
 
-import org.springframework.data.annotation.Id
-import org.springframework.data.mongodb.core.mapping.Document
-import org.springframework.data.mongodb.core.index.Indexed
+import io.quarkus.mongodb.panache.kotlin.PanacheMongoEntity
+import io.quarkus.mongodb.panache.common.MongoEntity
+import io.quarkus.mongodb.panache.kotlin.PanacheMongoCompanion
 import java.time.Instant
 
-@Document(collection = "chat_messages")
-data class ChatMessage(
-    @Id
-    val id: String? = null,
+@MongoEntity(collection = "chat_messages")
+class ChatMessage : PanacheMongoEntity() {
+    var chatId: Long = 0
+    var senderName: String = ""
+    var text: String = ""
+    var timestamp: Instant = Instant.now()
 
-    @Indexed
-    val chatId: Long,
+    companion object : PanacheMongoCompanion<ChatMessage> {
+        fun findByChatIdAndTimestampAfter(chatId: Long, since: Instant): List<ChatMessage> =
+            find("chatId = ?1 and timestamp > ?2", chatId, since).list()
 
-    val senderName: String,
+        fun deleteByChatIdAndTimestampBefore(chatId: Long, before: Instant) {
+            delete("chatId = ?1 and timestamp < ?2", chatId, before)
+        }
 
-    val text: String,
-
-    @Indexed
-    val timestamp: Instant = Instant.now()
-)
+        fun findDistinctChatIds(): List<Long> =
+            mongoCollection().distinct("chatId", Long::class.java).into(mutableListOf())
+    }
+}

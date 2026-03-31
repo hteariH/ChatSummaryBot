@@ -1,19 +1,16 @@
 package com.chatsummary.bot.model
 
-import org.springframework.data.annotation.Id
-import org.springframework.data.mongodb.core.mapping.Document
-import org.springframework.data.mongodb.core.index.Indexed
+import io.quarkus.mongodb.panache.kotlin.PanacheMongoEntity
+import io.quarkus.mongodb.panache.common.MongoEntity
 import java.time.Instant
 
-@Document(collection = "chat_configs")
-data class ChatConfig(
-    @Id
-    val id: String? = null,
-
-    @Indexed(unique = true)
-    val chatId: Long,
-
-    var cron: String,
-
+@MongoEntity(collection = "chat_configs")
+class ChatConfig : PanacheMongoEntity() {
+    var chatId: Long = 0
+    var cron: String = ""
     var lastProcessedAt: Instant? = null
-)
+
+    companion object : io.quarkus.mongodb.panache.kotlin.PanacheMongoCompanion<ChatConfig> {
+        fun findByChatId(chatId: Long): ChatConfig? = find("chatId", chatId).firstResult()
+    }
+}

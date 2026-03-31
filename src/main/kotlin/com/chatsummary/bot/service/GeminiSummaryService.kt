@@ -2,33 +2,32 @@ package com.chatsummary.bot.service
 
 import com.chatsummary.bot.model.ChatMessage
 import com.google.genai.Client
+import jakarta.enterprise.context.ApplicationScoped
+import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.retry.annotation.Backoff
-import org.springframework.retry.annotation.Retryable
-import org.springframework.stereotype.Service
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-@Service
+@ApplicationScoped
 class GeminiSummaryService(
-    @param:Value($$"${gemini.api-key}") private val apiKey: String,
-    @param:Value($$"${gemini.model}") private val model: String
+    @field:ConfigProperty(name = "gemini.retry.max-attempts", defaultValue = "3")
+        var maxAttempts: Int,
+    @field:ConfigProperty(name = "gemini.retry.delay", defaultValue = "1000")
+        var retryDelay: Long
 ) {
     private val log = LoggerFactory.getLogger(GeminiSummaryService::class.java)
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 
+    @ConfigProperty(name = "gemini.api-key")
+    lateinit var apiKey: String
+
+    @ConfigProperty(name = "gemini.model", defaultValue = "gemini-2.5-flash")
+    lateinit var model: String
+
     private val client: Client by lazy {
-        Client.builder()
-            .apiKey(apiKey)
-            .build()
+        Client.builder().apiKey(apiKey).build()
     }
 
-    @Retryable(
-        value = [Exception::class],
-        maxAttemptsExpression = $$"${gemini.retry.max-attempts:5}",
-        backoff = Backoff(delayExpression = $$"${gemini.retry.delay:1000}")
-    )
     fun summarize(messages: List<ChatMessage>): String {
         if (messages.isEmpty()) {
             return "📭 No messages to summarize today."
@@ -59,23 +58,19 @@ class GeminiSummaryService(
             |--- End of Transcript ---
         """.trimMargin()
 
-//        val config = GenerateContentConfig.builder()
-//            .maxOutputTokens(2048)
-//            .temperature(0.3f)
-//            .build()
-
-        val response = client.models.generateContent(
-            model,
-            prompt,
-            null
-        )
-
-        val result = response.text()
-        if (result == null) {
-            log.warn("Gemini returned empty response for chat summary")
-            throw RuntimeException("Gemini returned empty response")
+        var lastException: Exception? = null
+        repeat(maxAttempts) { attempt ->
+            try {
+                val response = client.models.generateContent(model, prompt, null)
+                val result = response.text()
+                    ?: throw RuntimeException("Gemini returned empty response")
+                return result
+            } catch (e: Exception) {
+                lastException = e
+                log.warn("Gemini attempt ${attempt + 1}/$maxAttempts failed: ${e.message}")
+                if (attempt < maxAttempts - 1) Thread.sleep(retryDelay)
+            }
         }
-
-        return result
+        throw lastException ?: RuntimeException("Gemini summarization failed after $maxAttempts attempts")
     }
 }

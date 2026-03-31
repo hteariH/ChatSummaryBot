@@ -1,14 +1,22 @@
-spring:
+quarkus:
   application:
     name: ChatSummaryBot
   mongodb:
-    uri: mongodb://localhost:27017/chatsummarybot
+    connection-string: ${MONGODB_URI:mongodb://localhost:27017/chatsummarybot}
+  log:
+    level: INFO
+    category:
+      "com.chatsummary":
+        level: DEBUG
+      "org.mongodb":
+        level: INFO
+      "org.telegram":
+        level: INFO
 
 # Telegram Bot
 telegram:
   bot:
     token: ${TELEGRAM_BOT_TOKEN}
-    username: ${TELEGRAM_BOT_USERNAME}
 
 # Gemini API
 gemini:
@@ -18,19 +26,14 @@ gemini:
     max-attempts: ${GEMINI_RETRY_MAX_ATTEMPTS:3}
     delay: ${GEMINI_RETRY_DELAY:1000}
 
-# Summary scheduler (default: daily at 21:00)
+# Summary scheduler
 summary:
   cron: ${SUMMARY_CRON:0 0 21 * * *}
   admin-chat-id: ${ADMIN_CHAT_ID}
 
+# Loki logging (used by logback.xml)
 logging:
   loki:
     url: ${LOKI_URL:}
     username: ${LOKI_USERNAME:}
     password: ${LOKI_PASSWORD:}
-  level:
-    root: INFO
-    com.chatsummary: INFO
-    org.springframework: INFO
-    org.mongodb: INFO
-    org.telegram: INFO
