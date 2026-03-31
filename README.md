@@ -1,6 +1,6 @@
 # ChatSummaryBot
 
-A Telegram bot built with Kotlin and Spring Boot that automatically summarizes daily chat messages using the Google Gemini API.
+A Telegram bot built with Kotlin and Quarkus that automatically summarizes daily chat messages using the Google Gemini API.
 
 ## Features
 
@@ -12,32 +12,17 @@ A Telegram bot built with Kotlin and Spring Boot that automatically summarizes d
 
 ## Prerequisites
 
-- Java 25
+- Java 17+
 - MongoDB 7
 - Telegram Bot Token (from [@BotFather](https://t.me/botfather))
 - Google Gemini API Key (from [Google AI Studio](https://aistudio.google.com/))
-
-## Configuration
-
-The bot can be configured via environment variables or a `.env` file:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TELEGRAM_BOT_TOKEN` | Your Telegram Bot Token | (Required) |
-| `TELEGRAM_BOT_USERNAME` | Your Telegram Bot Username | (Required) |
-| `GEMINI_API_KEY` | Your Google Gemini API Key | (Required) |
-| `GEMINI_MODEL` | Gemini model to use | `gemini-2.5-flash` |
-| `SUMMARY_CRON` | Cron expression for daily summary | `0 0 21 * * *` |
-| `ADMIN_CHAT_ID` | Telegram Chat ID for error alerts | (Required) |
-| `LOKI_URL` | URL of the Grafana Loki push endpoint | (Optional) |
-| `SPRING_MONGODB_URI` | MongoDB Connection URI | `mongodb://localhost:27017/chatsummarybot` |
 
 ## Getting Started
 
 ### Using Docker (Recommended)
 
 1. Clone the repository.
-2. Create a `.env` file based on `.env.example`.
+2. Create a `.env` file with the required variables (see [Configuration](#configuration) below).
 3. Run with Docker Compose:
 
 ```bash
@@ -46,24 +31,65 @@ docker-compose up -d
 
 ### Manual Build
 
-1. Ensure you have Java 25 installed.
-2. Build the project using Gradle:
+1. Build the project using Gradle:
 
 ```bash
 ./gradlew build
 ```
 
-3. Run the application:
+2. Run the application:
 
 ```bash
 java -jar build/libs/ChatSummaryBot-1.0.0.jar
 ```
 
-## Commands
+Run `./gradlew test` to execute all unit tests.
 
-- `/summary`: Generates and sends a summary of all messages recorded today in the current chat.
-- `/setcron <cron>`: Sets a custom summary schedule for the current chat (e.g., `/setcron 0 0 21 * * *`). Uses Spring's 6-field cron expression (seconds minutes hours day month day-of-week).
+## Configuration
+
+All settings are read from environment variables or `application.yml`.
+
+| Variable | Description | Default |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot API token | **required** |
+| `GEMINI_API_KEY` | Google Gemini API key | **required** |
+| `ADMIN_CHAT_ID` | Telegram chat ID to receive error notifications | **required** |
+| `GEMINI_MODEL` | Gemini model to use for summarisation | `gemini-2.5-flash` |
+| `GEMINI_RETRY_MAX_ATTEMPTS` | Max retry attempts on Gemini failure | `3` |
+| `GEMINI_RETRY_DELAY` | Milliseconds between retries | `1000` |
+| `SUMMARY_CRON` | 6-field cron expression for scheduled summaries | `0 0 21 * * *` |
+| `MONGODB_URI` | MongoDB connection URI | `mongodb://localhost:27017/chatsummarybot` |
+| `LOKI_URL` | Grafana Loki push endpoint URL | *(optional)* |
+| `LOKI_USERNAME` | Loki username | *(optional)* |
+| `LOKI_PASSWORD` | Loki password | *(optional)* |
+
+## Bot Commands
+
+| Command | Description |
+|---|---|
+| `/summary` | Generates and sends a summary of all messages recorded today in the current chat. |
+| `/setcron <expr>` | Sets a custom summary schedule for the current chat (e.g., `/setcron 0 0 21 * * *`). Uses a 6-field cron expression (seconds minutes hours day month weekday). |
+
+## Project Structure
+
+```
+src/main/kotlin/com/chatsummary/bot/
+├── ChatSummaryBotApplication.kt          # Quarkus entry point
+├── model/
+│   ├── ChatConfig.kt                     # Per-chat configuration model
+│   └── ChatMessage.kt                    # Message model
+├── telegram/
+│   └── ChatSummaryBot.kt                 # Telegram bot logic & command handling
+├── scheduler/
+│   └── DailySummaryScheduler.kt          # Cron-based scheduled summaries
+└── service/
+    ├── GeminiSummaryService.kt           # Calls Gemini to generate summaries
+    ├── BotMessageSender.kt               # Sends messages via Telegram API
+    ├── ChatConfigService.kt              # Manages per-chat configuration
+    ├── MessageService.kt                 # Persists messages to MongoDB
+    └── AdminNotificationService.kt       # Sends admin alerts on errors
+```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
