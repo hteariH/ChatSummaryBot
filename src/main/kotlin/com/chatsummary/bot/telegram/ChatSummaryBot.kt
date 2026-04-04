@@ -64,7 +64,7 @@ class ChatSummaryBot(
         if (message.hasSuccessfulPayment()) {
             val payment = message.successfulPayment
             val stars = payment.totalAmount
-            val creditsAdded = stars * 30
+            val creditsAdded = stars
             val donorName = message.from?.let { u ->
                 listOfNotNull(u.firstName, u.lastName).joinToString(" ").ifBlank { u.userName ?: "Someone" }
             } ?: "Someone"
@@ -154,10 +154,10 @@ class ChatSummaryBot(
             val invoice = SendInvoice.builder()
                 .chatId(chatId.toString())
                 .title("Убрать рекламу")
-                .description("1 ⭐ = 30 саммари без рекламы для этого чата.")
+                .description("30 ⭐ = 30 саммари без рекламы для этого чата.")
                 .payload("summary_credits")
                 .currency("XTR")
-                .price(LabeledPrice("1 звезда = 30 саммари", 1))
+                .price(LabeledPrice("30 звёзд = 30 саммари", 30))
                 .build()
             telegramClient.execute(invoice)
         } catch (e: Exception) {

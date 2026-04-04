@@ -39,10 +39,10 @@ class ChatConfigService(
         return config.summaryCredits
     }
 
-    /** Adds stars * 30 credits to the chat balance. */
+    /** Adds stars credits to the chat balance (1 star = 1 summary). */
     fun addSummaryCredits(chatId: Long, stars: Int) {
         val config = getChatConfig(chatId)
-        config.summaryCredits += stars * 30
+        config.summaryCredits += stars
         chatConfigRepository.save(config)
     }
 }
