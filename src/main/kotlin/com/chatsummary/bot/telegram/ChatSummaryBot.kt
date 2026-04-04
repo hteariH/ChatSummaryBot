@@ -13,6 +13,7 @@ import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsume
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery
+import org.telegram.telegrambots.meta.api.methods.GetChatMember
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
@@ -83,11 +84,19 @@ class ChatSummaryBot(
         } ?: "Unknown"
 
         if (text.startsWith("/summary")) {
+            if (!isUserAdmin(chatId, message.from!!.id)) {
+                sendMessage(chatId, "⛔ Only group admins can use this command.")
+                return
+            }
             handleSummaryCommand(chatId)
             return
         }
 
         if (text.startsWith("/setcron")) {
+            if (!isUserAdmin(chatId, message.from!!.id)) {
+                sendMessage(chatId, "⛔ Only group admins can use this command.")
+                return
+            }
             handleSetCronCommand(chatId, text)
             return
         }
@@ -162,6 +171,16 @@ class ChatSummaryBot(
             telegramClient.execute(invoice)
         } catch (e: Exception) {
             log.error("Failed to send invoice to chat {}", chatId, e)
+        }
+    }
+
+    private fun isUserAdmin(chatId: Long, userId: Long): Boolean {
+        return try {
+            val member = telegramClient.execute(GetChatMember(chatId.toString(), userId))
+            member.status in listOf("administrator", "creator")
+        } catch (e: Exception) {
+            log.warn("Failed to check admin status for user {} in chat {}", userId, chatId, e)
+            false
         }
     }
 
