@@ -149,7 +149,7 @@ class ChatSummaryBot(
     }
 
     fun sendAdWithRemoveOption(chatId: Long) {
-        sendMessage(chatId, "💬 Это сообщение спонсировано нашим партнёром — бесплатным VPN-ботом.\n👉 https://t.me/harmanvpn_bot?start=_tgr_BgwABPczYWNi")
+        sendMessage(chatId, "💬 Это сообщение спонсировано нашим партнёром —  VPN-ботом.\n👉 https://t.me/net4ebur_bot?startapp=eyJyIjoiS1hTVFg4In0=")
         try {
             val invoice = SendInvoice.builder()
                 .chatId(chatId.toString())
