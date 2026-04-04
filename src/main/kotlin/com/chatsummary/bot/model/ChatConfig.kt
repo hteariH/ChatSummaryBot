@@ -17,5 +17,5 @@ data class ChatConfig(
 
     var lastProcessedAt: Instant? = null,
 
-    var summaryCredits: Int = 30
+    var summaryCredits: Int = 0
 )
