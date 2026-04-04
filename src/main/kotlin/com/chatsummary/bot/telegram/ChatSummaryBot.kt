@@ -13,7 +13,7 @@ import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsume
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery
-import org.telegram.telegrambots.meta.api.methods.GetChatMember
+import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
@@ -158,7 +158,7 @@ class ChatSummaryBot(
     }
 
     fun sendAdWithRemoveOption(chatId: Long) {
-        sendMessage(chatId, "💬 Это сообщение спонсировано нашим партнёром —  VPN-ботом.\n👉 https://t.me/net4ebur_bot?startapp=eyJyIjoiS1hTVFg4In0=")
+//        sendMessage(chatId, "💬 Это сообщение спонсировано нашим партнёром —  VPN-ботом.\n👉 https://t.me/net4ebur_bot?startapp=eyJyIjoiS1hTVFg4In0=")
         try {
             val invoice = SendInvoice.builder()
                 .chatId(chatId.toString())
