@@ -12,8 +12,11 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
+import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery
+import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
+import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,8 +38,27 @@ class ChatSummaryBot(
     override fun getUpdatesConsumer(): LongPollingUpdateConsumer = this
 
     override fun consume(update: Update) {
+        // Handle donation pre-checkout approval
+        if (update.hasPreCheckoutQuery()) {
+            val query = update.preCheckoutQuery
+            telegramClient.execute(AnswerPreCheckoutQuery(query.id, true))
+            return
+        }
+
         if (!update.hasMessage()) return
         val message = update.message
+
+        // Handle successful payment
+        if (message.hasSuccessfulPayment()) {
+            val payment = message.successfulPayment
+            val stars = payment.totalAmount
+            val donorName = message.from?.let { u ->
+                listOfNotNull(u.firstName, u.lastName).joinToString(" ").ifBlank { u.userName ?: "Someone" }
+            } ?: "Someone"
+            sendMessage(message.chatId, "Thank you for your donation of $stars star(s), $donorName! Your support means a lot!")
+            adminNotificationService.notifyDonation(message.chatId, donorName, stars)
+            return
+        }
 
         // Only process text messages
         if (!message.hasText()) return
@@ -59,9 +81,32 @@ class ChatSummaryBot(
             return
         }
 
+        // Handle /donate command
+        if (text.startsWith("/donate")) {
+            handleDonateCommand(chatId)
+            return
+        }
+
         // Save regular message (skip other bot commands)
         if (!text.startsWith("/")) {
             messageService.saveMessage(chatId, senderName, text)
+        }
+    }
+
+    private fun handleDonateCommand(chatId: Long) {
+        val invoice = SendInvoice.builder()
+            .chatId(chatId.toString())
+            .title("Support the bot")
+            .description("Say thank you to the creator of ChatSummaryBot!")
+            .payload("donation")
+            .currency("XTR")
+            .price(LabeledPrice("Donation", 1))
+            .build()
+        try {
+            telegramClient.execute(invoice)
+        } catch (e: Exception) {
+            log.error("Failed to send invoice to chat {}", chatId, e)
+            sendMessage(chatId, "Sorry, donations are not available right now.")
         }
     }
 

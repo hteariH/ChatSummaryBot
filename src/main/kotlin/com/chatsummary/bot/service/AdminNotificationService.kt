@@ -13,6 +13,12 @@ class AdminNotificationService(
 ) {
     private val log = LoggerFactory.getLogger(AdminNotificationService::class.java)
 
+    fun notifyDonation(chatId: Long, donorName: String, stars: Int) {
+        val msg = "⭐ *Donation received!*\n*From:* $donorName\n*Chat:* $chatId\n*Amount:* $stars star(s)"
+        chatSummaryBot.sendMessage(adminChatId, msg)
+        log.info("Donation of {} star(s) from {} in chat {}", stars, donorName, chatId)
+    }
+
     fun notifyOnFailure(chatId: Long, operation: String, e: Exception, isScheduled: Boolean = false) {
         if (chatId == adminChatId) return // Avoid loop or redundant message
         
