@@ -15,5 +15,7 @@ data class ChatConfig(
 
     var cron: String,
 
-    var lastProcessedAt: Instant? = null
+    var lastProcessedAt: Instant? = null,
+
+    var summaryCredits: Int = 30
 )

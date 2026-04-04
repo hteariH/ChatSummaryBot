@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service
 @Service
 class ChatConfigService(
     private val chatConfigRepository: ChatConfigRepository,
-    @Value("\${summary.cron}") private val defaultCron: String
+    @param:Value("\${summary.cron}") private val defaultCron: String
 ) {
     fun getChatConfig(chatId: Long): ChatConfig {
         return chatConfigRepository.findByChatId(chatId) ?: ChatConfig(chatId = chatId, cron = defaultCron)
@@ -29,5 +29,20 @@ class ChatConfigService(
 
     fun getAllConfigs(): List<ChatConfig> {
         return chatConfigRepository.findAll()
+    }
+
+    /** Decrements credits by 1 (floor 0) and saves. Returns remaining credits. */
+    fun consumeSummaryCredit(chatId: Long): Int {
+        val config = getChatConfig(chatId)
+        if (config.summaryCredits > 0) config.summaryCredits--
+        chatConfigRepository.save(config)
+        return config.summaryCredits
+    }
+
+    /** Adds stars * 30 credits to the chat balance. */
+    fun addSummaryCredits(chatId: Long, stars: Int) {
+        val config = getChatConfig(chatId)
+        config.summaryCredits += stars * 30
+        chatConfigRepository.save(config)
     }
 }

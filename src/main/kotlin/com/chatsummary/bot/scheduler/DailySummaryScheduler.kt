@@ -69,6 +69,11 @@ class DailySummaryScheduler(
             val summary = geminiSummaryService.summarize(messages)
             chatSummaryBot.sendMessage(chatId, "📋 *Summary*\n\n$summary")
 
+            val remaining = chatConfigService.consumeSummaryCredit(chatId)
+            if (remaining == 0) {
+                chatSummaryBot.sendSupportInvoice(chatId)
+            }
+
             // Clear old messages after summary is sent
             messageService.clearOldMessages(chatId, Instant.now())
             log.info("Sent scheduled summary to chat {} ({} messages)", chatId, messages.size)

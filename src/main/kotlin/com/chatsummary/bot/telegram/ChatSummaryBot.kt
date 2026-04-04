@@ -48,14 +48,16 @@ class ChatSummaryBot(
         if (!update.hasMessage()) return
         val message = update.message
 
-        // Handle successful payment
+        // Handle successful payment — top up credits for this chat
         if (message.hasSuccessfulPayment()) {
             val payment = message.successfulPayment
             val stars = payment.totalAmount
+            val creditsAdded = stars * 30
             val donorName = message.from?.let { u ->
                 listOfNotNull(u.firstName, u.lastName).joinToString(" ").ifBlank { u.userName ?: "Someone" }
             } ?: "Someone"
-            sendMessage(message.chatId, "Thank you for your donation of $stars star(s), $donorName! Your support means a lot!")
+            chatConfigService.addSummaryCredits(message.chatId, stars)
+            sendMessage(message.chatId, "Thank you, $donorName! Added $creditsAdded summaries to this chat's balance.")
             adminNotificationService.notifyDonation(message.chatId, donorName, stars)
             return
         }
@@ -94,19 +96,22 @@ class ChatSummaryBot(
     }
 
     private fun handleDonateCommand(chatId: Long) {
+        sendSupportInvoice(chatId)
+    }
+
+    fun sendSupportInvoice(chatId: Long) {
         val invoice = SendInvoice.builder()
             .chatId(chatId.toString())
-            .title("Support the bot")
-            .description("Say thank you to the creator of ChatSummaryBot!")
-            .payload("donation")
+            .title("Remove ads & support the bot")
+            .description("1 ⭐ = 30 ad-free summaries for this chat. Thank you for your support!")
+            .payload("summary_credits")
             .currency("XTR")
-            .price(LabeledPrice("Donation", 1))
+            .price(LabeledPrice("1 Star = 30 summaries", 1))
             .build()
         try {
             telegramClient.execute(invoice)
         } catch (e: Exception) {
             log.error("Failed to send invoice to chat {}", chatId, e)
-            sendMessage(chatId, "Sorry, donations are not available right now.")
         }
     }
 
@@ -149,6 +154,11 @@ class ChatSummaryBot(
             val summary = geminiSummaryService.summarize(messages)
             sendMessage(chatId, "📋 *Summary*\n\n$summary")
             chatConfigService.updateLastProcessedAt(chatId, Instant.now())
+
+            val remaining = chatConfigService.consumeSummaryCredit(chatId)
+            if (remaining == 0) {
+                sendSupportInvoice(chatId)
+            }
         } catch (e: Exception) {
             log.error("Error handling /summary command for chat {}", chatId, e)
             sendMessage(chatId, "⚠️ Sorry, failed to generate summary. Please try again later.")
