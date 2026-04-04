@@ -13,10 +13,16 @@ class AdminNotificationService(
 ) {
     private val log = LoggerFactory.getLogger(AdminNotificationService::class.java)
 
-    fun notifyDonation(chatId: Long, donorName: String, stars: Int) {
-        val msg = "⭐ *Donation received!*\n*From:* $donorName\n*Chat:* $chatId\n*Amount:* $stars star(s)"
+    fun notifyNewChat(chatId: Long, chatTitle: String, chatType: String, addedBy: String) {
+        val msg = "🆕 *Бот добавлен в новый чат!*\n*Название:* $chatTitle\n*Тип:* $chatType\n*ID:* $chatId\n*Добавил:* $addedBy"
         chatSummaryBot.sendMessage(adminChatId, msg)
-        log.info("Donation of {} star(s) from {} in chat {}", stars, donorName, chatId)
+        log.info("Bot added to new chat: {} ({}), by {}", chatTitle, chatId, addedBy)
+    }
+
+    fun notifyPayment(chatId: Long, donorName: String, stars: Int, creditsAdded: Int) {
+        val msg = "⭐ *Оплата получена!*\n*От:* $donorName\n*Чат:* $chatId\n*Звёзд:* $stars\n*Добавлено саммари:* $creditsAdded"
+        chatSummaryBot.sendMessage(adminChatId, msg)
+        log.info("Payment of {} star(s) from {} in chat {}, added {} credits", stars, donorName, chatId, creditsAdded)
     }
 
     fun notifyOnFailure(chatId: Long, operation: String, e: Exception, isScheduled: Boolean = false) {

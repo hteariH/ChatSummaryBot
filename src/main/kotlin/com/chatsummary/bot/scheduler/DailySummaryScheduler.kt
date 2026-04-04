@@ -71,7 +71,7 @@ class DailySummaryScheduler(
 
             val remaining = chatConfigService.consumeSummaryCredit(chatId)
             if (remaining == 0) {
-                chatSummaryBot.sendSupportInvoice(chatId)
+                chatSummaryBot.sendAdWithRemoveOption(chatId)
             }
 
             // Clear old messages after summary is sent

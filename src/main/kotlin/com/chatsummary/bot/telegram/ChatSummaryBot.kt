@@ -38,17 +38,29 @@ class ChatSummaryBot(
     override fun getUpdatesConsumer(): LongPollingUpdateConsumer = this
 
     override fun consume(update: Update) {
-        // Handle donation pre-checkout approval
         if (update.hasPreCheckoutQuery()) {
             val query = update.preCheckoutQuery
             telegramClient.execute(AnswerPreCheckoutQuery(query.id, true))
             return
         }
 
+        if (update.hasMyChatMember()) {
+            val member = update.myChatMember
+            val oldStatus = member.oldChatMember.status
+            val newStatus = member.newChatMember.status
+            if (oldStatus in listOf("left", "kicked") && newStatus in listOf("member", "administrator")) {
+                val chat = member.chat
+                val addedBy = member.from?.let { u ->
+                    listOfNotNull(u.firstName, u.lastName).joinToString(" ").ifBlank { u.userName ?: "Unknown" }
+                } ?: "Unknown"
+                adminNotificationService.notifyNewChat(chat.id, chat.title ?: "Unknown", chat.type, addedBy)
+            }
+            return
+        }
+
         if (!update.hasMessage()) return
         val message = update.message
 
-        // Handle successful payment — top up credits for this chat
         if (message.hasSuccessfulPayment()) {
             val payment = message.successfulPayment
             val stars = payment.totalAmount
@@ -57,12 +69,11 @@ class ChatSummaryBot(
                 listOfNotNull(u.firstName, u.lastName).joinToString(" ").ifBlank { u.userName ?: "Someone" }
             } ?: "Someone"
             chatConfigService.addSummaryCredits(message.chatId, stars)
-            sendMessage(message.chatId, "Thank you, $donorName! Added $creditsAdded summaries to this chat's balance.")
-            adminNotificationService.notifyDonation(message.chatId, donorName, stars)
+            sendMessage(message.chatId, "✅ Спасибо, $donorName! Добавлено $creditsAdded саммари без рекламы.")
+            adminNotificationService.notifyPayment(message.chatId, donorName, stars, creditsAdded)
             return
         }
 
-        // Only process text messages
         if (!message.hasText()) return
 
         val chatId = message.chatId
@@ -71,47 +82,18 @@ class ChatSummaryBot(
             listOfNotNull(user.firstName, user.lastName).joinToString(" ").ifBlank { user.userName ?: "Unknown" }
         } ?: "Unknown"
 
-        // Handle /summary command
         if (text.startsWith("/summary")) {
             handleSummaryCommand(chatId)
             return
         }
 
-        // Handle /setcron command
         if (text.startsWith("/setcron")) {
             handleSetCronCommand(chatId, text)
             return
         }
 
-        // Handle /donate command
-        if (text.startsWith("/donate")) {
-            handleDonateCommand(chatId)
-            return
-        }
-
-        // Save regular message (skip other bot commands)
         if (!text.startsWith("/")) {
             messageService.saveMessage(chatId, senderName, text)
-        }
-    }
-
-    private fun handleDonateCommand(chatId: Long) {
-        sendSupportInvoice(chatId)
-    }
-
-    fun sendSupportInvoice(chatId: Long) {
-        val invoice = SendInvoice.builder()
-            .chatId(chatId.toString())
-            .title("Remove ads & support the bot")
-            .description("1 ⭐ = 30 ad-free summaries for this chat. Thank you for your support!")
-            .payload("summary_credits")
-            .currency("XTR")
-            .price(LabeledPrice("1 Star = 30 summaries", 1))
-            .build()
-        try {
-            telegramClient.execute(invoice)
-        } catch (e: Exception) {
-            log.error("Failed to send invoice to chat {}", chatId, e)
         }
     }
 
@@ -157,12 +139,29 @@ class ChatSummaryBot(
 
             val remaining = chatConfigService.consumeSummaryCredit(chatId)
             if (remaining == 0) {
-                sendSupportInvoice(chatId)
+                sendAdWithRemoveOption(chatId)
             }
         } catch (e: Exception) {
             log.error("Error handling /summary command for chat {}", chatId, e)
             sendMessage(chatId, "⚠️ Sorry, failed to generate summary. Please try again later.")
             adminNotificationService.notifyOnFailure(chatId, "Summary generation (/summary command)", e)
+        }
+    }
+
+    fun sendAdWithRemoveOption(chatId: Long) {
+        sendMessage(chatId, "💬 Это сообщение спонсировано нашим партнёром — бесплатным VPN-ботом.\n👉 https://t.me/harmanvpn_bot?start=_tgr_BgwABPczYWNi")
+        try {
+            val invoice = SendInvoice.builder()
+                .chatId(chatId.toString())
+                .title("Убрать рекламу")
+                .description("1 ⭐ = 30 саммари без рекламы для этого чата.")
+                .payload("summary_credits")
+                .currency("XTR")
+                .price(LabeledPrice("1 звезда = 30 саммари", 1))
+                .build()
+            telegramClient.execute(invoice)
+        } catch (e: Exception) {
+            log.error("Failed to send invoice to chat {}", chatId, e)
         }
     }
 
