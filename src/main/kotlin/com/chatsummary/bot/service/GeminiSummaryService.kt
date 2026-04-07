@@ -2,6 +2,8 @@ package com.chatsummary.bot.service
 
 import com.chatsummary.bot.model.ChatMessage
 import com.google.genai.Client
+import com.google.genai.errors.ApiException
+import com.google.genai.errors.ServerException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.retry.annotation.Backoff
@@ -12,8 +14,8 @@ import java.time.format.DateTimeFormatter
 
 @Service
 class GeminiSummaryService(
-    @param:Value($$"${gemini.api-key}") private val apiKey: String,
-    @param:Value($$"${gemini.model}") private val model: String
+    @param:Value("\${gemini.api-key}") private val apiKey: String,
+    @param:Value("\${gemini.model}") private val model: String
 ) {
     private val log = LoggerFactory.getLogger(GeminiSummaryService::class.java)
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
@@ -25,9 +27,9 @@ class GeminiSummaryService(
     }
 
     @Retryable(
-        value = [Exception::class],
-        maxAttemptsExpression = $$"${gemini.retry.max-attempts:5}",
-        backoff = Backoff(delayExpression = $$"${gemini.retry.delay:1000}")
+        value = [ServerException::class, RuntimeException::class],
+        maxAttemptsExpression = "\${gemini.retry.max-attempts:20}",
+        backoff = Backoff(delayExpression = "\${gemini.retry.delay:10000}")
     )
     fun summarize(messages: List<ChatMessage>): String {
         if (messages.isEmpty()) {

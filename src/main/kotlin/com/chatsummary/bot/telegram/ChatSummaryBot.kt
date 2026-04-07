@@ -13,6 +13,7 @@ import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsume
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery
+import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChat
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
@@ -24,7 +25,7 @@ import java.time.ZoneId
 
 @Component
 class ChatSummaryBot(
-    @param:Value($$"${telegram.bot.token}") private val botToken: String,
+    @param:Value("\${telegram.bot.token}") private val botToken: String,
     private val messageService: MessageService,
     private val geminiSummaryService: GeminiSummaryService,
     private val chatConfigService: ChatConfigService,
@@ -153,7 +154,8 @@ class ChatSummaryBot(
         } catch (e: Exception) {
             log.error("Error handling /summary command for chat {}", chatId, e)
             sendMessage(chatId, "⚠️ Sorry, failed to generate summary. Please try again later.")
-            adminNotificationService.notifyOnFailure(chatId, "Summary generation (/summary command)", e)
+            val chatTitle = getChatTitle(chatId)
+            adminNotificationService.notifyOnFailure(chatId, chatTitle, "Summary generation (/summary command)", e)
         }
     }
 
@@ -181,6 +183,16 @@ class ChatSummaryBot(
         } catch (e: Exception) {
             log.warn("Failed to check admin status for user {} in chat {}", userId, chatId, e)
             false
+        }
+    }
+
+    fun getChatTitle(chatId: Long): String {
+        return try {
+            val chat = telegramClient.execute(GetChat(chatId.toString()))
+            chat.title ?: "Unknown"
+        } catch (e: Exception) {
+            log.warn("Failed to get chat title for {}", chatId, e)
+            "Unknown"
         }
     }
 

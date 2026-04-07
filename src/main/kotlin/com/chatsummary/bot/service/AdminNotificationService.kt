@@ -25,13 +25,14 @@ class AdminNotificationService(
         log.info("Payment of {} star(s) from {} in chat {}, added {} credits", stars, donorName, chatId, creditsAdded)
     }
 
-    fun notifyOnFailure(chatId: Long, operation: String, e: Exception, isScheduled: Boolean = false) {
+    fun notifyOnFailure(chatId: Long, groupName: String, operation: String, e: Exception, isScheduled: Boolean = false) {
         if (chatId == adminChatId) return // Avoid loop or redundant message
         
         val header = if (isScheduled) "🚨 *Failure Alert (Scheduled)*" else "🚨 *Failure Alert*"
         val errorMsg = """
             $header
             *Operation:* $operation
+            *Group:* $groupName
             *Chat ID:* $chatId
             *Error:* ${e.message ?: "Unknown error"}
         """.trimIndent()

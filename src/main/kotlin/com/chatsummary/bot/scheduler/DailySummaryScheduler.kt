@@ -80,7 +80,8 @@ class DailySummaryScheduler(
             return true
         } catch (e: Exception) {
             log.error("Failed to send scheduled summary for chat {}", chatId, e)
-            adminNotificationService.notifyOnFailure(chatId, "Scheduled Summary", e, isScheduled = true)
+            val chatTitle = chatSummaryBot.getChatTitle(chatId)
+            adminNotificationService.notifyOnFailure(chatId, chatTitle, "Scheduled Summary", e, isScheduled = true)
             return false
         }
     }
