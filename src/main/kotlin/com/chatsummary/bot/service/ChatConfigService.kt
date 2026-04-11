@@ -39,6 +39,12 @@ class ChatConfigService(
         return config.summaryCredits
     }
 
+    fun setEnabled(chatId: Long, enabled: Boolean) {
+        val config = getChatConfig(chatId)
+        config.enabled = enabled
+        chatConfigRepository.save(config)
+    }
+
     fun setLanguage(chatId: Long, language: String) {
         val config = getChatConfig(chatId)
         config.language = language

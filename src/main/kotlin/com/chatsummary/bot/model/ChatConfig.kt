@@ -19,5 +19,7 @@ data class ChatConfig(
 
     var summaryCredits: Int = 0,
 
-    var language: String = "English"
+    var language: String = "English",
+
+    var enabled: Boolean = true
 )

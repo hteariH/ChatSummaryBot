@@ -102,6 +102,18 @@ class ChatSummaryBot(
             return
         }
 
+        if (text.startsWith("/enable") || text.startsWith("/disable")) {
+            if (!isUserAdmin(chatId, message.from!!.id)) {
+                sendMessage(chatId, "⛔ Only group admins can use this command.")
+                return
+            }
+            val enable = text.startsWith("/enable")
+            chatConfigService.setEnabled(chatId, enable)
+            sendMessage(chatId, if (enable) "✅ Bot enabled for this chat. Messages will be saved." else "🚫 Bot disabled for this chat. Messages will no longer be saved.")
+            log.info("{} chat {}", if (enable) "Enabled" else "Disabled", chatId)
+            return
+        }
+
         if (text.startsWith("/setlanguage")) {
 //            if (!isUserAdmin(chatId, message.from!!.id)) {
 //                sendMessage(chatId, "⛔ Only group admins can use this command.")
@@ -112,7 +124,10 @@ class ChatSummaryBot(
         }
 
         if (!text.startsWith("/")) {
-            messageService.saveMessage(chatId, senderName, text)
+            val config = chatConfigService.getChatConfig(chatId)
+            if (config.enabled) {
+                messageService.saveMessage(chatId, senderName, text)
+            }
         }
     }
 
