@@ -102,9 +102,30 @@ class ChatSummaryBot(
             return
         }
 
+        if (text.startsWith("/setlanguage")) {
+//            if (!isUserAdmin(chatId, message.from!!.id)) {
+//                sendMessage(chatId, "⛔ Only group admins can use this command.")
+//                return
+//            }
+            handleSetLanguageCommand(chatId, text)
+            return
+        }
+
         if (!text.startsWith("/")) {
             messageService.saveMessage(chatId, senderName, text)
         }
+    }
+
+    private fun handleSetLanguageCommand(chatId: Long, text: String) {
+        val parts = text.split(" ", limit = 2)
+        if (parts.size < 2 || parts[1].isBlank()) {
+            sendMessage(chatId, "⚠️ Usage: /setlanguage English\nExamples: English, Russian, Spanish, German, French")
+            return
+        }
+        val language = parts[1].trim()
+        chatConfigService.setLanguage(chatId, language)
+        sendMessage(chatId, "✅ Summary language set to: $language")
+        log.info("Updated language for chat {}: {}", chatId, language)
     }
 
     private fun handleSetCronCommand(chatId: Long, text: String) {
@@ -143,7 +164,7 @@ class ChatSummaryBot(
 
             sendMessage(chatId, "⏳ Generating summary of ${messages.size} messages...")
 
-            val summary = geminiSummaryService.summarize(messages)
+            val summary = geminiSummaryService.summarize(messages, config.language)
             sendMessage(chatId, "📋 *Summary*\n\n$summary")
             chatConfigService.updateLastProcessedAt(chatId, Instant.now())
 

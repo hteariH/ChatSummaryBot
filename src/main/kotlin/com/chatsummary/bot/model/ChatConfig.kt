@@ -17,5 +17,7 @@ data class ChatConfig(
 
     var lastProcessedAt: Instant? = null,
 
-    var summaryCredits: Int = 0
+    var summaryCredits: Int = 0,
+
+    var language: String = "English"
 )

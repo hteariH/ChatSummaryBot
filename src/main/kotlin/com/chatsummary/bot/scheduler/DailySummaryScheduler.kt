@@ -49,7 +49,7 @@ class DailySummaryScheduler(
 
             // If the next execution time is in the past or is exactly now (truncated to minutes), process it
             if (nextExecution != null && !nextExecution.isAfter(now)) {
-                if (processSummary(chatId, lastProcessedInstant)) {
+                if (processSummary(chatId, lastProcessedInstant, config.language)) {
                     chatConfigService.updateLastProcessedAt(chatId, now.toInstant())
                 }
                 Thread.sleep(2000*60) // Sleep for 2 minute before checking the next chat to not overload the gemini API
@@ -57,7 +57,7 @@ class DailySummaryScheduler(
         }
     }
 
-    private fun processSummary(chatId: Long, since: Instant): Boolean {
+    private fun processSummary(chatId: Long, since: Instant, language: String = "English"): Boolean {
         try {
             val messages = messageService.getMessagesSince(chatId, since)
             if (messages.isEmpty()) {
@@ -66,7 +66,7 @@ class DailySummaryScheduler(
             }
 
             log.info("Sending scheduled summary for chat {} since {}...", chatId, since)
-            val summary = geminiSummaryService.summarize(messages)
+            val summary = geminiSummaryService.summarize(messages, language)
             chatSummaryBot.sendMessage(chatId, "📋 *Summary*\n\n$summary")
 
             val remaining = chatConfigService.consumeSummaryCredit(chatId)

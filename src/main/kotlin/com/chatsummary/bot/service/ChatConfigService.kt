@@ -39,6 +39,12 @@ class ChatConfigService(
         return config.summaryCredits
     }
 
+    fun setLanguage(chatId: Long, language: String) {
+        val config = getChatConfig(chatId)
+        config.language = language
+        chatConfigRepository.save(config)
+    }
+
     /** Adds stars credits to the chat balance (1 star = 1 summary). */
     fun addSummaryCredits(chatId: Long, stars: Int) {
         val config = getChatConfig(chatId)

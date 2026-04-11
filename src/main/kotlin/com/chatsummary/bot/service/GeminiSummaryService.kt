@@ -2,7 +2,6 @@ package com.chatsummary.bot.service
 
 import com.chatsummary.bot.model.ChatMessage
 import com.google.genai.Client
-import com.google.genai.errors.ApiException
 import com.google.genai.errors.ServerException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -31,7 +30,7 @@ class GeminiSummaryService(
         maxAttemptsExpression = "\${gemini.retry.max-attempts:20}",
         backoff = Backoff(delayExpression = "\${gemini.retry.delay:10000}")
     )
-    fun summarize(messages: List<ChatMessage>): String {
+    fun summarize(messages: List<ChatMessage>, language: String = "English"): String {
         if (messages.isEmpty()) {
             return "📭 No messages to summarize today."
         }
@@ -44,7 +43,7 @@ class GeminiSummaryService(
             |You are a helpful assistant that summarizes group chat conversations.
             |Below is a transcript of today's group chat messages.
             |
-            |When answering prioritize language of the provided transcript, preferring Russian over any other languages.
+            |When answering prioritize language of the provided transcript, preferring $language over any other languages.
             |
             |Please provide a concise, well-structured summary that:
             |1. Highlights the main topics discussed
