@@ -115,10 +115,10 @@ class ChatSummaryBot(
         }
 
         if (text.startsWith("/setlanguage")) {
-//            if (!isUserAdmin(chatId, message.from!!.id)) {
-//                sendMessage(chatId, "⛔ Only group admins can use this command.")
-//                return
-//            }
+            if (!isUserAdmin(chatId, message.from!!.id)) {
+                sendMessage(chatId, "⛔ Only group admins can use this command.")
+                return
+            }
             handleSetLanguageCommand(chatId, text)
             return
         }
