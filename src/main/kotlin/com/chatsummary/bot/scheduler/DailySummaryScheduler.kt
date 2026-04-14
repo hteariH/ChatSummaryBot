@@ -24,7 +24,7 @@ class DailySummaryScheduler(
 ) {
     private val log = LoggerFactory.getLogger(DailySummaryScheduler::class.java)
 
-    @Scheduled(fixedRate = 300000) // Check every 5 minutes
+    @Scheduled(fixedRate = 60000) // Check every 1 minutes
     fun sendScheduledSummaries() {
         log.debug("Checking for scheduled summaries...")
 
