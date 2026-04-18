@@ -124,10 +124,10 @@ class ChatSummaryBot(
         }
 
         if (text.startsWith("/setprompt")) {
-//            if (!isUserAdmin(chatId, message.from!!.id)) {
-//                sendMessage(chatId, "⛔ Only group admins can use this command.")
-//                return
-//            }
+            if (!isUserAdmin(chatId, message.from!!.id)) {
+                sendMessage(chatId, "⛔ Only group admins can use this command.")
+                return
+            }
             handleSetPromptCommand(chatId, text)
             return
         }
