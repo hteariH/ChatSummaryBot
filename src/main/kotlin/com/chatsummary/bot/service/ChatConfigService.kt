@@ -50,6 +50,11 @@ class ChatConfigService(
         config.language = language
         chatConfigRepository.save(config)
     }
+    fun setCustomPrompt(chatId: Long, customPrompt: String?) {
+        val config = getChatConfig(chatId)
+        config.customPrompt = customPrompt
+        chatConfigRepository.save(config)
+    }
 
     /** Adds stars credits to the chat balance (1 star = 1 summary). */
     fun addSummaryCredits(chatId: Long, stars: Int) {

@@ -123,12 +123,35 @@ class ChatSummaryBot(
             return
         }
 
+        if (text.startsWith("/setprompt")) {
+//            if (!isUserAdmin(chatId, message.from!!.id)) {
+//                sendMessage(chatId, "⛔ Only group admins can use this command.")
+//                return
+//            }
+            handleSetPromptCommand(chatId, text)
+            return
+        }
+
         if (!text.startsWith("/")) {
             val config = chatConfigService.getChatConfig(chatId)
             if (config.enabled) {
                 messageService.saveMessage(chatId, senderName, text)
             }
         }
+    }
+
+    private fun handleSetPromptCommand(chatId: Long, text: String) {
+        val parts = text.split(" ", limit = 2)
+        if (parts.size < 2 || parts[1].isBlank()) {
+            chatConfigService.setCustomPrompt(chatId, null)
+            sendMessage(chatId, "✅ Custom prompt cleared.")
+            log.info("Cleared custom prompt for chat {}", chatId)
+            return
+        }
+        val customPrompt = parts[1].trim()
+        chatConfigService.setCustomPrompt(chatId, customPrompt)
+        sendMessage(chatId, "✅ Custom prompt set: $customPrompt")
+        log.info("Updated custom prompt for chat {}: {}", chatId, customPrompt)
     }
 
     private fun handleSetLanguageCommand(chatId: Long, text: String) {
@@ -179,7 +202,7 @@ class ChatSummaryBot(
 
             sendMessage(chatId, "⏳ Generating summary of ${messages.size} messages...")
 
-            val summary = geminiSummaryService.summarize(messages, config.language)
+            val summary = geminiSummaryService.summarize(messages, config.language, config.customPrompt)
             sendMessage(chatId, "📋 *Summary*\n\n$summary")
             chatConfigService.updateLastProcessedAt(chatId, Instant.now())
 

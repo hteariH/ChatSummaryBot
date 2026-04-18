@@ -21,5 +21,6 @@ data class ChatConfig(
 
     var language: String = "English",
 
-    var enabled: Boolean = true
+    var enabled: Boolean = true,
+    var customPrompt: String? = null
 )

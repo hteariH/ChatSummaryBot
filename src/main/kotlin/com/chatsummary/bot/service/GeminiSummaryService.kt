@@ -30,7 +30,7 @@ class GeminiSummaryService(
         maxAttemptsExpression = "\${gemini.retry.max-attempts:20}",
         backoff = Backoff(delayExpression = "\${gemini.retry.delay:10000}")
     )
-    fun summarize(messages: List<ChatMessage>, language: String = "English"): String {
+    fun summarize(messages: List<ChatMessage>, language: String = "English", customPrompt: String? = null): String {
         if (messages.isEmpty()) {
             return "📭 No messages to summarize today."
         }
@@ -55,6 +55,7 @@ class GeminiSummaryService(
             |Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
             |
             |Negative prompt: markdown, HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
+            |${if (!customPrompt.isNullOrBlank()) "Additional instructions: $customPrompt" else ""}
             |--- Chat Transcript ---
             |$conversationText
             |--- End of Transcript ---
