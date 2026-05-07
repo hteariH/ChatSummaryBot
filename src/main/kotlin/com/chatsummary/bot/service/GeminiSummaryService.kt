@@ -1,6 +1,7 @@
 package com.chatsummary.bot.service
 
 import com.chatsummary.bot.model.ChatMessage
+import com.chatsummary.bot.model.DailySummary
 import com.google.genai.Client
 import com.google.genai.errors.ServerException
 import org.slf4j.LoggerFactory
@@ -79,5 +80,47 @@ class GeminiSummaryService(
         }
 
         return result
+    }
+
+    @Retryable(
+        value = [ServerException::class, RuntimeException::class],
+        maxAttemptsExpression = "\${gemini.retry.max-attempts:20}",
+        backoff = Backoff(delayExpression = "\${gemini.retry.delay:10000}")
+    )
+    fun summarizeMonthly(summaries: List<DailySummary>, language: String = "English"): String {
+        if (summaries.isEmpty()) {
+            return "📭 No daily summaries found for this month."
+        }
+
+        val allSummariesText = summaries.joinToString("\n\n") { ds ->
+            "--- Daily Summary [${timeFormatter.format(ds.timestamp)}] ---\n${ds.text}"
+        }
+
+        val prompt = """
+            |You are a helpful assistant that creates a monthly digest from daily chat summaries.
+            |Below are the daily summaries for the past month.
+            |
+            |When answering prioritize language of the provided summaries, preferring $language over any other languages.
+            |
+            |Please provide a comprehensive monthly report that:
+            |1. Highlights the most significant events and topics of the month
+            |2. Tracks the progress of ongoing discussions or projects
+            |3. Summarizes key outcomes and decisions
+            |4. Is well-structured with clear sections
+            |
+            |Format the report nicely for Telegram.
+            |
+            |--- Monthly Data ---
+            |$allSummariesText
+            |--- End of Data ---
+        """.trimMargin()
+
+        val response = client.models.generateContent(
+            model,
+            prompt,
+            null
+        )
+
+        return response.text() ?: throw RuntimeException("Gemini returned empty response for monthly summary")
     }
 }

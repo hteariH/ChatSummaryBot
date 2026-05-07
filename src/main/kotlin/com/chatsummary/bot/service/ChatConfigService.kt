@@ -56,6 +56,18 @@ class ChatConfigService(
         chatConfigRepository.save(config)
     }
 
+    fun setMonthlySummaryEnabled(chatId: Long, enabled: Boolean) {
+        val config = getChatConfig(chatId)
+        config.monthlySummaryEnabled = enabled
+        chatConfigRepository.save(config)
+    }
+
+    fun updateLastMonthlyProcessedAt(chatId: Long, timestamp: Instant) {
+        val config = getChatConfig(chatId)
+        config.lastMonthlyProcessedAt = timestamp
+        chatConfigRepository.save(config)
+    }
+
     /** Adds stars credits to the chat balance (1 star = 1 summary). */
     fun addSummaryCredits(chatId: Long, stars: Int) {
         val config = getChatConfig(chatId)

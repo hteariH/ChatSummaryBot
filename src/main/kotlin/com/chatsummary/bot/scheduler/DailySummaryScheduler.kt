@@ -30,19 +30,25 @@ class DailySummaryScheduler(
 
         val now = ZonedDateTime.now()
         val activeChatIds = messageService.getAllActiveChatIds()
-        
+
         if (activeChatIds.isEmpty()) return
 
         for (chatId in activeChatIds) {
             val config = chatConfigService.getChatConfig(chatId)
             val cron = CronExpression.parse(config.cron)
-            
+
             // Determine the start point for checking missed summaries
             // If never processed, start from beginning of today
-            val lastProcessedInstant = config.lastProcessedAt ?: LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
+            val lastProcessedInstant =
+                config.lastProcessedAt ?: LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
             val lastProcessedZdt = lastProcessedInstant.atZone(ZoneId.systemDefault())
 
-            log.debug("Checking chat {} for scheduled summary (last processed: {}, cron: {})", chatId, lastProcessedZdt, config.cron)
+            log.debug(
+                "Checking chat {} for scheduled summary (last processed: {}, cron: {})",
+                chatId,
+                lastProcessedZdt,
+                config.cron
+            )
 
             // Find the next scheduled execution time after the last processed time
             val nextExecution = cron.next(lastProcessedZdt)
@@ -52,12 +58,17 @@ class DailySummaryScheduler(
                 if (processSummary(chatId, lastProcessedInstant, config.language, config.customPrompt)) {
                     chatConfigService.updateLastProcessedAt(chatId, now.toInstant())
                 }
-                Thread.sleep(2000*60) // Sleep for 2 minute before checking the next chat to not overload the gemini API
+                Thread.sleep(2000 * 60) // Sleep for 2 minute before checking the next chat to not overload the gemini API
             }
         }
     }
 
-    private fun processSummary(chatId: Long, since: Instant, language: String = "English", customPrompt: String? = null): Boolean {
+    private fun processSummary(
+        chatId: Long,
+        since: Instant,
+        language: String = "English",
+        customPrompt: String? = null
+    ): Boolean {
         try {
             val messages = messageService.getMessagesSince(chatId, since)
             if (messages.isEmpty()) {
@@ -69,6 +80,10 @@ class DailySummaryScheduler(
             val summary = geminiSummaryService.summarize(messages, language, customPrompt)
             chatSummaryBot.sendMessage(chatId, "📋 *Summary*\n\n$summary")
 
+            // Save summary for monthly report
+            if (chatConfigService.getChatConfig(chatId).monthlySummaryEnabled) {
+                messageService.saveDailySummary(chatId, summary)
+            }
             val remaining = chatConfigService.consumeSummaryCredit(chatId)
             if (remaining == 0) {
                 chatSummaryBot.sendAdWithRemoveOption(chatId)

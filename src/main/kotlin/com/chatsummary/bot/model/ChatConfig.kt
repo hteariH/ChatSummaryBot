@@ -22,5 +22,7 @@ data class ChatConfig(
     var language: String = "English",
 
     var enabled: Boolean = true,
-    var customPrompt: String? = null
+    var customPrompt: String? = null,
+    var monthlySummaryEnabled: Boolean = false,
+    var lastMonthlyProcessedAt: Instant? = null
 )

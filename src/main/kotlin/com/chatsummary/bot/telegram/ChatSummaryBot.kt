@@ -123,6 +123,15 @@ class ChatSummaryBot(
             return
         }
 
+        if (text.startsWith("/setmonthly")) {
+            if (!isUserAdmin(chatId, message.from!!.id)) {
+                sendMessage(chatId, "⛔ Only group admins can use this command.")
+                return
+            }
+            handleSetMonthlyCommand(chatId, text)
+            return
+        }
+
         if (text.startsWith("/setprompt")) {
             if (!isUserAdmin(chatId, message.from!!.id)) {
                 sendMessage(chatId, "⛔ Only group admins can use this command.")
@@ -164,6 +173,18 @@ class ChatSummaryBot(
         chatConfigService.setLanguage(chatId, language)
         sendMessage(chatId, "✅ Summary language set to: $language")
         log.info("Updated language for chat {}: {}", chatId, language)
+    }
+
+    private fun handleSetMonthlyCommand(chatId: Long, text: String) {
+        val parts = text.split(" ", limit = 2)
+        if (parts.size < 2 || parts[1].isBlank()) {
+            sendMessage(chatId, "⚠️ Usage: /setmonthly on/off")
+            return
+        }
+        val enabled = parts[1].trim().lowercase() == "on"
+        chatConfigService.setMonthlySummaryEnabled(chatId, enabled)
+        sendMessage(chatId, if (enabled) "✅ Monthly summary enabled for this chat." else "🚫 Monthly summary disabled for this chat.")
+        log.info("Updated monthly summary status for chat {}: {}", chatId, enabled)
     }
 
     private fun handleSetCronCommand(chatId: Long, text: String) {
