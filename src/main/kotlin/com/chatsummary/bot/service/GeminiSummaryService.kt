@@ -3,6 +3,8 @@ package com.chatsummary.bot.service
 import com.chatsummary.bot.model.ChatMessage
 import com.chatsummary.bot.model.DailySummary
 import com.google.genai.Client
+import com.google.genai.types.Content
+import com.google.genai.types.Part
 import com.google.genai.errors.ServerException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -36,13 +38,9 @@ class GeminiSummaryService(
             return "📭 No messages to summarize today."
         }
 
-        val conversationText = messages.joinToString("\n") { msg ->
-            "[${timeFormatter.format(msg.timestamp)}] ${msg.senderName}: ${msg.text}"
-        }
-
-        val prompt = """
+        val systemPrompt = """
             |You are a helpful assistant that summarizes group chat conversations.
-            |Below is a transcript of today's group chat messages.
+            |Below is a transcript of group chat messages, where some messages might have attached images immediately following their text.
             |
             |When answering prioritize language of the provided transcript, preferring $language over any other languages.
             |
@@ -52,24 +50,35 @@ class GeminiSummaryService(
             |3. Mentions key participants where relevant
             |4. Uses bullet points for clarity
             |5. Keeps it concise but informative
+            |6. If images are provided, incorporate their context into the summary where relevant.
             |
             |Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
             |
             |Negative prompt: markdown, HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
             |${if (!customPrompt.isNullOrBlank()) "Additional instructions: $customPrompt" else ""}
-            |--- Chat Transcript ---
-            |$conversationText
-            |--- End of Transcript ---
+            |--- Chat Transcript Start ---
         """.trimMargin()
 
-//        val config = GenerateContentConfig.builder()
-//            .maxOutputTokens(2048)
-//            .temperature(0.3f)
-//            .build()
+        val parts = mutableListOf<Part>()
+        parts.add(Part.fromText(systemPrompt))
+
+        // Interleave message text with its attachments
+        messages.forEach { msg ->
+            val msgText = "[${timeFormatter.format(msg.timestamp)}] ${msg.senderName}: ${msg.text}"
+            parts.add(Part.fromText(msgText))
+            
+            msg.attachments.forEach { attachment ->
+                parts.add(Part.fromBytes(attachment.data.data, attachment.contentType))
+            }
+        }
+
+        parts.add(Part.fromText("--- End of Transcript ---"))
+
+        val content = Content.builder().parts(parts).build()
 
         val response = client.models.generateContent(
             model,
-            prompt,
+            content,
             null
         )
 
