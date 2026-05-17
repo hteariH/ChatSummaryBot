@@ -2,7 +2,8 @@ name: Build & Deploy
 
 on:
   push:
-    branches: [ master, payment-only ]
+    branches:
+      - "**"
 
 jobs:
   deploy:
