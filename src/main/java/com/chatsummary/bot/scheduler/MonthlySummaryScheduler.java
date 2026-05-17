@@ -70,13 +70,8 @@ public class MonthlySummaryScheduler {
     private void processMonthlySummary(long chatId, String language) {
         try {
             var now = ZonedDateTime.now();
-            var firstDayOfMonth = now.with(TemporalAdjusters.firstDayOfMonth())
-                    .withHour(0)
-                    .withMinute(0)
-                    .withSecond(0)
-                    .toInstant();
 
-            var dailySummaries = messageService.getDailySummariesSince(chatId, firstDayOfMonth);
+            var dailySummaries = messageService.getDailySummaries(chatId);
             if (dailySummaries.isEmpty()) {
                 log.info("No daily summaries for chat {} this month, skipping monthly summary.", chatId);
                 return;
@@ -86,7 +81,7 @@ public class MonthlySummaryScheduler {
             var monthlySummary = geminiSummaryService.summarizeMonthly(dailySummaries, language);
 
             chatSummaryBot.sendMessage(chatId, "📅 *Monthly Digest*\n\n" + monthlySummary);
-            messageService.clearOldDailySummaries(chatId, firstDayOfMonth);
+            messageService.clearOldDailySummaries(chatId);
 
             log.info("Sent monthly summary to chat {}", chatId);
         } catch (Exception exception) {

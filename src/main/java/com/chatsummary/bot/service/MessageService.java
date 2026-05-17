@@ -47,9 +47,13 @@ public class MessageService {
         return dailySummaryRepository.findByChatIdAndTimestampAfter(chatId, since);
     }
 
-    public void clearOldDailySummaries(long chatId, Instant before) {
-        dailySummaryRepository.deleteByChatIdAndTimestampBefore(chatId, before);
-        log.info("Cleared daily summaries before {} in chat {}", before, chatId);
+    public List<DailySummary> getDailySummaries(long chatId) {
+        return dailySummaryRepository.findByChatId(chatId);
+    }
+
+    public void clearOldDailySummaries(long chatId) {
+        dailySummaryRepository.deleteByChatId(chatId);
+        log.info("Cleared daily summaries in chat {}", chatId);
     }
 
     public List<ChatMessage> getMessagesSince(long chatId, Instant since) {

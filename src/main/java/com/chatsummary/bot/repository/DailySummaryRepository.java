@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 public interface DailySummaryRepository extends MongoRepository<DailySummary, String> {
 
     List<DailySummary> findByChatIdAndTimestampAfter(long chatId, Instant since);
+    List<DailySummary> findByChatId(long chatId);
 
     void deleteByChatIdAndTimestampBefore(long chatId, Instant before);
+    void deleteByChatId(long chatId);
 }
