@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +34,15 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     private static final List<String> ADMIN_STATUSES = List.of("administrator", "creator");
     private static final List<String> INACTIVE_STATUSES = List.of("left", "kicked");
     private static final List<String> ACTIVE_STATUSES = List.of("member", "administrator");
+    private static final Set<String> ADMIN_COMMANDS = Set.of(
+            "/summary",
+            "/setcron",
+            "/enable",
+            "/disable",
+            "/setlanguage",
+            "/setmonthly",
+            "/setprompt"
+    );
 
     private final String botToken;
     private final MessageService messageService;
@@ -146,56 +156,38 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     }
 
     private boolean handleCommand(long chatId, long userId, String text) {
-        return switch (commandOf(text)) {
-            case "/summary" -> {
-                if (!requireAdmin(chatId, userId)) {
-                    yield true;
-                }
+        var command = commandOf(text);
+        if (!ADMIN_COMMANDS.contains(command)) {
+            return false;
+        }
+
+        if (!requireAdmin(chatId, userId)) {
+            return true;
+        }
+
+        switch (command) {
+            case "/summary" ->
                 handleSummaryCommand(chatId);
-                yield true;
-            }
-            case "/setcron" -> {
-                if (!requireAdmin(chatId, userId)) {
-                    yield true;
-                }
+            case "/setcron" ->
                 handleSetCronCommand(chatId, text);
-                yield true;
-            }
             case "/enable", "/disable" -> {
-                if (!requireAdmin(chatId, userId)) {
-                    yield true;
-                }
                 var enable = text.startsWith("/enable");
                 chatConfigService.setEnabled(chatId, enable);
                 sendMessage(chatId, enable
                         ? "✅ Bot enabled for this chat. Messages will be saved."
                         : "🚫 Bot disabled for this chat. Messages will no longer be saved.");
                 log.info("{} chat {}", enable ? "Enabled" : "Disabled", chatId);
-                yield true;
             }
-            case "/setlanguage" -> {
-                if (!requireAdmin(chatId, userId)) {
-                    yield true;
-                }
+            case "/setlanguage" ->
                 handleSetLanguageCommand(chatId, text);
-                yield true;
-            }
-            case "/setmonthly" -> {
-                if (!requireAdmin(chatId, userId)) {
-                    yield true;
-                }
+            case "/setmonthly" ->
                 handleSetMonthlyCommand(chatId, text);
-                yield true;
-            }
-            case "/setprompt" -> {
-                if (!requireAdmin(chatId, userId)) {
-                    yield true;
-                }
+            case "/setprompt" ->
                 handleSetPromptCommand(chatId, text);
-                yield true;
-            }
-            default -> false;
-        };
+            default -> throw new IllegalStateException("Admin command is not handled: " + command);
+        }
+
+        return true;
     }
 
     private boolean requireAdmin(long chatId, long userId) {
