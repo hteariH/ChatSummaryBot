@@ -15,33 +15,37 @@
         </encoder>
     </appender>
 
-    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
-        <http>
-            <url>${lokiUrl}</url>
-            <auth>
-                <username>${lokiUsername}</username>
-                <password>${lokiPassword}</password>
-            </auth>
-        </http>
-        <format>
-            <label>
-                <pattern>app=${appName},host=${HOSTNAME},level=%level</pattern>
-            </label>
-            <message>
-                <pattern>l=%level c=%logger{20} t=%thread | %msg %ex</pattern>
-            </message>
-            <sortByTimestamp>true</sortByTimestamp>
-        </format>
-    </appender>
+    <if condition='p("lokiUrl") != null &amp;&amp; !p("lokiUrl").isEmpty()'>
+        <then>
+            <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+                <http>
+                    <url>${lokiUrl}</url>
+                    <auth>
+                        <username>${lokiUsername}</username>
+                        <password>${lokiPassword}</password>
+                    </auth>
+                </http>
+                <format>
+                    <label>
+                        <pattern>app=${appName},host=${HOSTNAME},level=%level</pattern>
+                    </label>
+                    <message>
+                        <pattern>l=%level c=%logger{20} t=%thread | %msg %ex</pattern>
+                    </message>
+                </format>
+            </appender>
 
-    <root level="DEBUG">
-        <appender-ref ref="CONSOLE" />
-        <if condition='p("lokiUrl") != null &amp;&amp; !p("lokiUrl").isEmpty()'>
-            <then>
+            <root level="DEBUG">
+                <appender-ref ref="CONSOLE" />
                 <appender-ref ref="LOKI" />
-            </then>
-        </if>
-    </root>
+            </root>
+        </then>
+        <else>
+            <root level="DEBUG">
+                <appender-ref ref="CONSOLE" />
+            </root>
+        </else>
+    </if>
 
     <logger name="com.chatsummary" level="DEBUG" />
     <logger name="org.springframework" level="INFO" />

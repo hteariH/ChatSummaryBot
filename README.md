@@ -1,6 +1,6 @@
 # ChatSummaryBot
 
-A Telegram bot built with Kotlin and Spring Boot that automatically summarizes daily chat messages using the Google Gemini API.
+A Telegram bot built with Java 25 and Spring Boot that automatically summarizes daily chat messages using the Google Gemini API.
 
 ## Features
 
