@@ -6,12 +6,14 @@ import com.chatsummary.bot.repository.ChatMessageRepository
 import com.chatsummary.bot.repository.DailySummaryRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.telegram.telegrambots.meta.api.objects.PhotoSize
 import java.time.Instant
 
 @Service
 class MessageService(
     private val chatMessageRepository: ChatMessageRepository,
-    private val dailySummaryRepository: DailySummaryRepository
+    private val dailySummaryRepository: DailySummaryRepository,
+    private val telegramDownloadService: TelegramDownloadService
 ) {
     private val log = LoggerFactory.getLogger(MessageService::class.java)
 
@@ -56,5 +58,23 @@ class MessageService(
         return chatMessageRepository.findAllChatIds()
             .map { it.chatId }
             .toSet()
+    }
+
+    fun savePhotoMessage(chatId: Long, senderName: String, photo: MutableList<PhotoSize>, text2: String) {
+
+        val fileId = photo.first().fileId
+        log.info("Saving photo message from '{}' in chat {}", senderName, chatId)
+        val downloadPhoto = telegramDownloadService.downloadPhoto(fileId)
+        log.info("Downloaded photo message from '{}' in chat {}", senderName, chatId)
+
+        val message = ChatMessage(
+            chatId = chatId,
+            senderName = senderName,
+            text = text2,
+            attachments = listOf(downloadPhoto),
+            timestamp = Instant.now()
+        )
+        chatMessageRepository.save(message)
+        log.debug("Saved photo message from '{}' in chat {}", senderName, chatId)
     }
 }

@@ -76,13 +76,23 @@ class ChatSummaryBot(
             return
         }
 
-        if (!message.hasText()) return
-
         val chatId = message.chatId
         val text = message.text
+
         val senderName = message.from?.let { user ->
             listOfNotNull(user.firstName, user.lastName).joinToString(" ").ifBlank { user.userName ?: "Unknown" }
         } ?: "Unknown"
+
+        if(message.hasPhoto()){
+            val config = chatConfigService.getChatConfig(chatId)
+            if (config.enabled) {
+                messageService.savePhotoMessage(chatId, senderName, message.photo, message.caption ?: message.text ?: "")
+            }
+            return
+        }
+
+        if (!message.hasText()) return
+
 
         if (text.startsWith("/summary")) {
             if (!isUserAdmin(chatId, message.from!!.id)) {
