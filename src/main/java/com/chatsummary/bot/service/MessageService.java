@@ -80,6 +80,6 @@ public class MessageService {
         log.info("Downloaded photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
         chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text, List.of(downloadedPhoto)));
-        log.debug("Saved photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+        log.info("Saved photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
     }
 }
