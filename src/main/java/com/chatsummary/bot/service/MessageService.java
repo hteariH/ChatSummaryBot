@@ -33,9 +33,9 @@ public class MessageService {
         this.telegramDownloadService = telegramDownloadService;
     }
 
-    public void saveMessage(long chatId, String senderName, String text) {
-        chatMessageRepository.save(new ChatMessage(chatId, senderName, text));
-        log.debug("Saved message from '{}' in chat {}", senderName, chatId);
+    public void saveMessage(long chatId, Integer telegramMessageId, String senderName, String text) {
+        chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text));
+        log.debug("Saved message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
     }
 
     public void saveDailySummary(long chatId, String text) {
@@ -72,14 +72,14 @@ public class MessageService {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    public void savePhotoMessage(long chatId, String senderName, List<PhotoSize> photo, String text) {
+    public void savePhotoMessage(long chatId, Integer telegramMessageId, String senderName, List<PhotoSize> photo, String text) {
         var fileId = photo.getFirst().getFileId();
-        log.info("Saving photo message from '{}' in chat {}", senderName, chatId);
+        log.info("Saving photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
         var downloadedPhoto = telegramDownloadService.downloadPhoto(fileId);
-        log.info("Downloaded photo message from '{}' in chat {}", senderName, chatId);
+        log.info("Downloaded photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
-        chatMessageRepository.save(new ChatMessage(chatId, senderName, text, List.of(downloadedPhoto)));
-        log.debug("Saved photo message from '{}' in chat {}", senderName, chatId);
+        chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text, List.of(downloadedPhoto)));
+        log.debug("Saved photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
     }
 }

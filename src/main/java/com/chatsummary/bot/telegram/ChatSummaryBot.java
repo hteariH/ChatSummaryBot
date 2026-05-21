@@ -116,7 +116,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
                 var text = firstNonNull(message.getCaption(), message.getText(), "");
-                messageService.savePhotoMessage(chatId, senderName, message.getPhoto(), text);
+                messageService.savePhotoMessage(chatId, message.getMessageId(), senderName, message.getPhoto(), text);
             }
             return;
         }
@@ -133,7 +133,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         if (!text.startsWith("/")) {
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
-                messageService.saveMessage(chatId, senderName, text);
+                messageService.saveMessage(chatId, message.getMessageId(), senderName, text);
             }
         }
     }

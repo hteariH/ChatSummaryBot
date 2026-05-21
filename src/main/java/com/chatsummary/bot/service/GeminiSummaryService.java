@@ -64,8 +64,10 @@ public class GeminiSummaryService {
                 4. Uses bullet points for clarity
                 5. Keeps it concise but informative
                 6. If images are provided, incorporate their context into the summary where relevant.
+                7. Includes source links for the original messages in key points. Use only the source links provided in the transcript.
                 
                 Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
+                For every key point, add one or more relevant source URLs in parentheses at the end of the point.
                 
                 Negative prompt: markdown, HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
                 %s
@@ -79,8 +81,10 @@ public class GeminiSummaryService {
         parts.add(Part.fromText(systemPrompt));
 
         for (var message : messages) {
-            var messageText = "[%s] %s: %s".formatted(
+            var messageText = "[%s] %s | source: %s | %s: %s".formatted(
                     timeFormatter.format(message.timestamp()),
+                    messageReference(message),
+                    messageSource(message),
                     message.senderName(),
                     message.text()
             );
@@ -105,6 +109,27 @@ public class GeminiSummaryService {
         }
 
         return result;
+    }
+
+    private static String messageReference(ChatMessage message) {
+        if (message.telegramMessageId() == null) {
+            return "message id unavailable";
+        }
+
+        return "message #" + message.telegramMessageId();
+    }
+
+    private static String messageSource(ChatMessage message) {
+        if (message.telegramMessageId() == null) {
+            return "source link unavailable";
+        }
+
+        var chatId = Long.toString(message.chatId());
+        if (chatId.startsWith("-100")) {
+            return "https://t.me/c/%s/%d".formatted(chatId.substring(4), message.telegramMessageId());
+        }
+
+        return messageReference(message);
     }
 
     @Retryable(
