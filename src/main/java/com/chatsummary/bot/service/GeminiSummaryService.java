@@ -6,10 +6,12 @@ import com.google.genai.Client;
 import com.google.genai.errors.ServerException;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
+
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,9 +54,9 @@ public class GeminiSummaryService {
         var systemPrompt = """
                 You are a helpful assistant that summarizes group chat conversations.
                 Below is a transcript of group chat messages, where some messages might have attached images immediately following their text.
-
+                
                 When answering prioritize language of the provided transcript, preferring %s over any other languages.
-
+                
                 Please provide a concise, well-structured summary that:
                 1. Highlights the main topics discussed
                 2. Notes any decisions made or action items
@@ -62,9 +64,9 @@ public class GeminiSummaryService {
                 4. Uses bullet points for clarity
                 5. Keeps it concise but informative
                 6. If images are provided, incorporate their context into the summary where relevant.
-
+                
                 Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
-
+                
                 Negative prompt: markdown, HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
                 %s
                 --- Chat Transcript Start ---
@@ -124,17 +126,17 @@ public class GeminiSummaryService {
         var prompt = """
                 You are a helpful assistant that creates a monthly digest from daily chat summaries.
                 Below are the daily summaries for the past month.
-
+                
                 When answering prioritize language of the provided summaries, preferring %s over any other languages.
-
+                
                 Please provide a comprehensive monthly report that:
                 1. Highlights the most significant events and topics of the month
                 2. Tracks the progress of ongoing discussions or projects
                 3. Summarizes key outcomes and decisions
                 4. Is well-structured with clear sections
-
+                
                 Format the report nicely for Telegram.
-
+                
                 --- Monthly Data ---
                 %s
                 --- End of Data ---

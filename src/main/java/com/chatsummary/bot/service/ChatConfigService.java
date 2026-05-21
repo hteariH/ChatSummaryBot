@@ -26,11 +26,11 @@ public class ChatConfigService {
                 .orElseGet(() -> new ChatConfig(chatId, defaultCron));
     }
 
-    public ChatConfig saveChatConfig(long chatId, String cron) {
+    public void saveChatConfig(long chatId, String cron) {
         var config = chatConfigRepository.findByChatId(chatId)
                 .orElseGet(() -> new ChatConfig(chatId, cron));
         config.setCron(cron);
-        return chatConfigRepository.save(config);
+        chatConfigRepository.save(config);
     }
 
     public void updateLastProcessedAt(long chatId, Instant timestamp) {
