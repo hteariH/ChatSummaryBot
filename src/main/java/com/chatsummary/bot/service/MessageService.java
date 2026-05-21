@@ -35,7 +35,7 @@ public class MessageService {
 
     public void saveMessage(long chatId, Integer telegramMessageId, String senderName, String text) {
         chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text));
-        log.debug("Saved message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+        log.info("Saved message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
     }
 
     public void saveDailySummary(long chatId, String text) {
