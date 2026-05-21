@@ -14,7 +14,7 @@ public class ChatSummaryBotApplication {
 
     private static final Logger log = LoggerFactory.getLogger(ChatSummaryBotApplication.class);
 
-    void main(String[] args) {
+    public static void main(String[] args) {
         log.info("Starting ChatSummaryBot Application...");
         SpringApplication.run(ChatSummaryBotApplication.class, args);
     }
