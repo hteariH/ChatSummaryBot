@@ -7,16 +7,16 @@ import com.chatsummary.bot.service.MessageService;
 import com.chatsummary.bot.telegram.ChatSummaryBot;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.TemporalAdjusters;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+@Slf4j
+@RequiredArgsConstructor
 @Component
 public class MonthlySummaryScheduler {
 
-    private static final Logger log = LoggerFactory.getLogger(MonthlySummaryScheduler.class);
     private static final long GEMINI_THROTTLE_MILLIS = 2_000L * 60L;
 
     private final MessageService messageService;
@@ -24,20 +24,6 @@ public class MonthlySummaryScheduler {
     private final ChatSummaryBot chatSummaryBot;
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
-
-    public MonthlySummaryScheduler(
-            MessageService messageService,
-            GeminiSummaryService geminiSummaryService,
-            ChatSummaryBot chatSummaryBot,
-            ChatConfigService chatConfigService,
-            AdminNotificationService adminNotificationService
-    ) {
-        this.messageService = messageService;
-        this.geminiSummaryService = geminiSummaryService;
-        this.chatSummaryBot = chatSummaryBot;
-        this.chatConfigService = chatConfigService;
-        this.adminNotificationService = adminNotificationService;
-    }
 
     @Scheduled(cron = "0 0 19 L * *")
     public void sendMonthlySummaries() throws InterruptedException {
@@ -69,8 +55,6 @@ public class MonthlySummaryScheduler {
 
     private void processMonthlySummary(long chatId, String language) {
         try {
-            var now = ZonedDateTime.now();
-
             var dailySummaries = messageService.getDailySummaries(chatId);
             if (dailySummaries.isEmpty()) {
                 log.info("No daily summaries for chat {} this month, skipping monthly summary.", chatId);

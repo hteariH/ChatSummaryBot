@@ -9,8 +9,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
@@ -27,10 +27,10 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice;
 
+@Slf4j
 @Component
 public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
-    private static final Logger log = LoggerFactory.getLogger(ChatSummaryBot.class);
     private static final List<String> ADMIN_STATUSES = List.of("administrator", "creator");
     private static final List<String> INACTIVE_STATUSES = List.of("left", "kicked");
     private static final List<String> ACTIVE_STATUSES = List.of("member", "administrator");
@@ -44,6 +44,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             "/setprompt"
     );
 
+    @Getter
     private final String botToken;
     private final MessageService messageService;
     private final GeminiSummaryService geminiSummaryService;
@@ -64,11 +65,6 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         this.chatConfigService = chatConfigService;
         this.adminNotificationService = adminNotificationService;
         this.telegramClient = new OkHttpTelegramClient(botToken);
-    }
-
-    @Override
-    public String getBotToken() {
-        return botToken;
     }
 
     @Override

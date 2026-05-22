@@ -29,6 +29,12 @@ dependencies {
     implementation("com.github.loki4j:loki-logback-appender:1.6.0")
     implementation("org.codehaus.janino:janino:3.1.12")
 
+    // Lombok
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+    testCompileOnly("org.projectlombok:lombok")
+    testAnnotationProcessor("org.projectlombok:lombok")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

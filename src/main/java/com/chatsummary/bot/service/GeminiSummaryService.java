@@ -12,17 +12,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class GeminiSummaryService {
 
-    private static final Logger log = LoggerFactory.getLogger(GeminiSummaryService.class);
     private static final String EMPTY_DAILY_SUMMARY = "📭 No messages to summarize today.";
     private static final String EMPTY_MONTHLY_SUMMARY = "📭 No daily summaries found for this month.";
 
