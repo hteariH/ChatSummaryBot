@@ -87,9 +87,11 @@ public class DailySummaryScheduler {
             }
 
             if(chatConfigService.getChatConfig(chatId).getSummaryCredits()>=0) {
+                log.info("Checking for credits for chat {}...", chatId);
                 var remaining = chatConfigService.consumeSummaryCredit(chatId);
                 if (remaining == 0) {
-                    chatSummaryBot.sendAdWithRemoveOption(chatId);
+                    log.info("sending AD for chat{}...", chatId);
+                    // chatSummaryBot.sendAdWithRemoveOption(chatId);
                 }
             }
 
