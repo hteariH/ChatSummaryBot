@@ -124,11 +124,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         }
 
         var text = message.getText();
-        if (handleCommand(chatId, message.getFrom().getId(), text)) {
-            return;
-        }
-
-        if (!text.startsWith("/")) {
+        if(text.startsWith("/")) {
+           handleCommand(chatId, message.getFrom().getId(), text);
+        }else {
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
                 messageService.saveMessage(chatId, message.getMessageId(), senderName, text);
