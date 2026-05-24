@@ -63,7 +63,7 @@ public class GeminiSummaryService {
                 4. Uses bullet points for clarity
                 5. Keeps it concise but informative
                 6. If images are provided, incorporate their context into the summary where relevant.
-                7. Includes source links for the original messages in key points. Use only the source links provided in the transcript.
+                7. Includes source links for the original messages in key points. Use only the source links provided in the transcript, use source links in format [\\(link\\)](<source_link>).
                 
                 Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
                 For every key point, add one or more relevant source URLs in parentheses at the end of the point.
