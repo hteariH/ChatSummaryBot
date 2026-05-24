@@ -185,7 +185,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     }
 
     private void handleTestLink(long chatId, String text) {
-        sendMessage(chatId, "[(link)](https://t.me/c/1605482413/704539)");
+        sendMessage(chatId, "[\\(link\\)](https://t.me/c/1605482413/704539)");
     }
 
     private boolean requireAdmin(long chatId, long userId) {
