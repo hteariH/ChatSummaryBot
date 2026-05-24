@@ -330,15 +330,25 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void sendMessage(long chatId, String text) {
         try {
+            var escaped = escapeMarkdownV2(text);
             var message = SendMessage.builder()
                     .chatId(Long.toString(chatId))
                     .parseMode("MarkdownV2")
-                    .text(text)
+                    .text(escaped)
                     .build();
             telegramClient.execute(message);
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
         }
+    }
+
+    public static String escapeMarkdownV2(String text) {
+        if (text == null) {
+            return "";
+        }
+        // Список символов, которые нужно экранировать в MarkdownV2
+        // Мы находим любой из этих символов и добавляем перед ним обратный слэш \\
+        return text.replaceAll("([_*\\[\\]()~`>#+\\-=|{}.!])", "\\\\$1");
     }
 
     private static String commandOf(String text) {
