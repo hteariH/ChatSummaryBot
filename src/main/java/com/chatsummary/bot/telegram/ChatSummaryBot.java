@@ -4,11 +4,13 @@ import com.chatsummary.bot.service.AdminNotificationService;
 import com.chatsummary.bot.service.ChatConfigService;
 import com.chatsummary.bot.service.GeminiSummaryService;
 import com.chatsummary.bot.service.MessageService;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
+
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -162,10 +164,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         }
 
         switch (command) {
-            case "/summary" ->
-                handleSummaryCommand(chatId);
-            case "/setcron" ->
-                handleSetCronCommand(chatId, text);
+            case "/summary" -> handleSummaryCommand(chatId);
+            case "/setcron" -> handleSetCronCommand(chatId, text);
             case "/enable", "/disable" -> {
                 var enable = text.startsWith("/enable");
                 chatConfigService.setEnabled(chatId, enable);
@@ -174,16 +174,18 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                         : "🚫 Bot disabled for this chat. Messages will no longer be saved.");
                 log.info("{} chat {}", enable ? "Enabled" : "Disabled", chatId);
             }
-            case "/setlanguage" ->
-                handleSetLanguageCommand(chatId, text);
-            case "/setmonthly" ->
-                handleSetMonthlyCommand(chatId, text);
-            case "/setprompt" ->
-                handleSetPromptCommand(chatId, text);
+            case "/setlanguage" -> handleSetLanguageCommand(chatId, text);
+            case "/setmonthly" -> handleSetMonthlyCommand(chatId, text);
+            case "/setprompt" -> handleSetPromptCommand(chatId, text);
+            case "/testlink" -> handleTestLink(chatId, text);
             default -> throw new IllegalStateException("Admin command is not handled: " + command);
         }
 
         return true;
+    }
+
+    private void handleTestLink(long chatId, String text) {
+        sendMessage(chatId, "<a href=\"https://t.me/c/1605482413/704539\">(link)</a>");
     }
 
     private boolean requireAdmin(long chatId, long userId) {
