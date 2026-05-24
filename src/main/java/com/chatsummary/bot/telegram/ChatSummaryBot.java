@@ -185,7 +185,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     }
 
     private void handleTestLink(long chatId, String text) {
-        sendMessage(chatId, "<a href=\"https://t.me/c/1605482413/704539\">(link)</a>");
+        sendMessage(chatId, "[(link)](https://t.me/c/1605482413/704539)");
     }
 
     private boolean requireAdmin(long chatId, long userId) {
@@ -334,6 +334,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         try {
             var message = SendMessage.builder()
                     .chatId(Long.toString(chatId))
+                    .parseMode("MarkdownV2")
                     .text(text)
                     .build();
             telegramClient.execute(message);

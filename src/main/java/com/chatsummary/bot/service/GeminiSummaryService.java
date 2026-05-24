@@ -68,7 +68,7 @@ public class GeminiSummaryService {
                 Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
                 For every key point, add one or more relevant source URLs in parentheses at the end of the point.
                 
-                Negative prompt: markdown, HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
+                Negative prompt: HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
                 %s
                 --- Chat Transcript Start ---
                 """.formatted(
