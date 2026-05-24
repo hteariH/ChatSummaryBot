@@ -155,13 +155,13 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     private boolean handleCommand(long chatId, long userId, String text) {
         var command = commandOf(text);
-        if (!ADMIN_COMMANDS.contains(command)) {
-            return false;
-        }
-
-        if (!requireAdmin(chatId, userId)) {
-            return true;
-        }
+//        if (!ADMIN_COMMANDS.contains(command)) {
+//            return false;
+//        }
+//
+//        if (!requireAdmin(chatId, userId)) {
+//            return true;
+//        }
 
         switch (command) {
             case "/summary" -> handleSummaryCommand(chatId);
