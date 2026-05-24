@@ -330,11 +330,10 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void sendMessage(long chatId, String text) {
         try {
-            var escaped = escapeMarkdownV2(text);
             var message = SendMessage.builder()
                     .chatId(Long.toString(chatId))
-                    .parseMode("MarkdownV2")
-                    .text(escaped)
+                    .parseMode("HTML")
+                    .text(text)
                     .build();
             telegramClient.execute(message);
         } catch (Exception exception) {
