@@ -330,6 +330,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void sendMessage(long chatId, String text) {
         try {
+            log.info("Sending message to chat {}: {}", chatId, text);
             var message = SendMessage.builder()
                     .chatId(Long.toString(chatId))
                     .parseMode("HTML")
