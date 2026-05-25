@@ -12,6 +12,8 @@ public interface ChatMessageRepository extends MongoRepository<ChatMessage, Stri
 
     List<ChatMessage> findByChatIdAndTimestampAfter(long chatId, Instant since);
 
+    List<ChatMessage> findByChatIdAndTimestampBefore(long chatId, Instant before);
+
     void deleteByChatIdAndTimestampBefore(long chatId, Instant before);
 
     @Query(value = "{}", fields = "{ 'chatId': 1 }")

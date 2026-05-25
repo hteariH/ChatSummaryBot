@@ -119,6 +119,19 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             return;
         }
 
+        if (message.hasVoice()) {
+            var voice = message.getVoice();
+            if (voice.getDuration() <= 300) { // 5 minutes
+                var config = chatConfigService.getChatConfig(chatId);
+                if (config.isEnabled()) {
+                    messageService.saveVoiceMessage(chatId, message.getMessageId(), senderName, voice.getFileId());
+                }
+            } else {
+                log.info("Skipping voice message from {} in chat {} because it's too long ({}s)", senderName, chatId, voice.getDuration());
+            }
+            return;
+        }
+
         if (!message.hasText()) {
             return;
         }

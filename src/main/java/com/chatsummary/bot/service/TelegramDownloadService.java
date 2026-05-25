@@ -19,11 +19,26 @@ public class TelegramDownloadService {
     }
 
     public ChatAttachment downloadPhoto(String fileId) {
+        return downloadAsBinary(fileId, "photo");
+    }
+
+    public byte[] downloadVoice(String fileId) {
+        try {
+            var file = telegramClient.execute(new GetFile(fileId));
+            try (var inputStream = telegramClient.downloadFileAsStream(file)) {
+                return inputStream.readAllBytes();
+            }
+        } catch (TelegramApiException | IOException exception) {
+            throw new IllegalStateException("Failed to download Telegram voice", exception);
+        }
+    }
+
+    private ChatAttachment downloadAsBinary(String fileId, String type) {
         try {
             var file = telegramClient.execute(new GetFile(fileId));
             var filePath = file.getFilePath();
             if (filePath == null) {
-                throw new IllegalStateException("Telegram не вернул путь к файлу");
+                throw new IllegalStateException("Telegram didn't return file path");
             }
 
             try (var inputStream = telegramClient.downloadFileAsStream(file)) {
@@ -32,7 +47,7 @@ public class TelegramDownloadService {
                 return new ChatAttachment(contentType, new Binary(fileBytes));
             }
         } catch (TelegramApiException | IOException exception) {
-            throw new IllegalStateException("Failed to download Telegram photo", exception);
+            throw new IllegalStateException("Failed to download Telegram " + type, exception);
         }
     }
 }
