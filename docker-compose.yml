@@ -17,6 +17,9 @@ services:
       - LOKI_URL=${LOKI_URL}
       - LOKI_USERNAME=${LOKI_USERNAME}
       - LOKI_PASSWORD=${LOKI_PASSWORD}
+      - STORAGE_PATH=/app/storage
+    volumes:
+      - bot-storage:/app/storage
     networks:
       - bot-network
 
@@ -39,6 +42,7 @@ services:
 
 volumes:
   mongo-data:
+  bot-storage:
 
 networks:
   bot-network:

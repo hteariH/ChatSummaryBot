@@ -35,4 +35,15 @@ public class TelegramDownloadService {
             throw new IllegalStateException("Failed to download Telegram photo", exception);
         }
     }
+
+    public byte[] downloadFile(String fileId) {
+        try {
+            var file = telegramClient.execute(new GetFile(fileId));
+            try (var inputStream = telegramClient.downloadFileAsStream(file)) {
+                return inputStream.readAllBytes();
+            }
+        } catch (TelegramApiException | IOException exception) {
+            throw new IllegalStateException("Failed to download Telegram file", exception);
+        }
+    }
 }

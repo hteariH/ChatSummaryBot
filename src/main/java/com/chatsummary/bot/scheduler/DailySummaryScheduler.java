@@ -9,16 +9,17 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 
+@Slf4j
+@RequiredArgsConstructor
 @Component
 public class DailySummaryScheduler {
 
-    private static final Logger log = LoggerFactory.getLogger(DailySummaryScheduler.class);
     private static final long GEMINI_THROTTLE_MILLIS = 2_000L * 60L;
 
     private final MessageService messageService;
@@ -26,20 +27,6 @@ public class DailySummaryScheduler {
     private final ChatSummaryBot chatSummaryBot;
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
-
-    public DailySummaryScheduler(
-            MessageService messageService,
-            GeminiSummaryService geminiSummaryService,
-            ChatSummaryBot chatSummaryBot,
-            ChatConfigService chatConfigService,
-            AdminNotificationService adminNotificationService
-    ) {
-        this.messageService = messageService;
-        this.geminiSummaryService = geminiSummaryService;
-        this.chatSummaryBot = chatSummaryBot;
-        this.chatConfigService = chatConfigService;
-        this.adminNotificationService = adminNotificationService;
-    }
 
     @Scheduled(fixedRate = 60_000)
     public void sendScheduledSummaries() throws InterruptedException {
