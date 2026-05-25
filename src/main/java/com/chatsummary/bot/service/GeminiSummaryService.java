@@ -11,8 +11,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,7 +63,7 @@ public class GeminiSummaryService {
                 4. Uses bullet points for clarity
                 5. Keeps it concise but informative
                 6. If images are provided, incorporate their context into the summary where relevant.
-                7. Includes source links for the original messages in key points. Use only the source links provided in the transcript.
+                7. Includes source links for the original messages in key points. Use only the source links provided in the transcript, use source links in format <a href="<source_link>">(link)</a>).
                 
                 Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
                 For every key point, add one or more relevant source URLs in parentheses at the end of the point.
@@ -179,19 +177,4 @@ public class GeminiSummaryService {
         return result;
     }
 
-    public static String replaceTelegramLinksWithHtml(String text) {
-        if (text == null) {
-            return "";
-        }
-
-        // Регулярное выражение для поиска ссылок на посты в Telegram
-        // Поддерживает как публичные (t.me/channel/123), так и приватные (t.me/c/123/123) ссылки
-        String regex = "https://t\\.me/(c/[0-9]+/|\\w+/)[0-9]+";
-
-        Pattern pattern = Pattern.compile(regex);
-        Matcher matcher = pattern.matcher(text);
-
-        // $0 подставляет всю найденную ссылку целиком в атрибут href
-        return matcher.replaceAll("<a href=\"$0\">(link)</a>");
-    }
 }
