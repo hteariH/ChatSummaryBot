@@ -153,13 +153,13 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     private boolean handleCommand(long chatId, long userId, String text) {
         var command = commandOf(text);
-//        if (!ADMIN_COMMANDS.contains(command)) {
-//            return false;
-//        }
-//
-//        if (!requireAdmin(chatId, userId)) {
-//            return true;
-//        }
+        if (!ADMIN_COMMANDS.contains(command)) {
+            return false;
+        }
+
+        if (!requireAdmin(chatId, userId)) {
+            return true;
+        }
 
         switch (command) {
             case "/summary" -> handleSummaryCommand(chatId);
@@ -342,19 +342,16 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         }
     }
 
-    public static String escapeMarkdownV2(String text) {
-        if (text == null) {
+    private static String commandOf(String text) {
+        if (text == null || text.isBlank()) {
             return "";
         }
-        // Список символов, которые нужно экранировать в MarkdownV2
-        // Мы находим любой из этих символов и добавляем перед ним обратный слэш \\
-        return text.replaceAll("([_*\\[\\]()~`>#+\\-=|{}.!])", "\\\\$1");
-    }
+        // Сначала берем первое слово (до пробела)
+        String firstWord = text.split("\\s+", 2)[0];
 
-    private static String commandOf(String text) {
-        return text.split("\\s+", 2)[0];
+        // Затем делим его по символу '@' и берем только левую часть (саму команду)
+        return firstWord.split("@", 2)[0];
     }
-
     private static String displayName(User user, String defaultName) {
         if (user == null) {
             return defaultName;
