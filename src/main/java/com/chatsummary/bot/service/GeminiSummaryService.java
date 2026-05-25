@@ -12,17 +12,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class GeminiSummaryService {
 
-    private static final Logger log = LoggerFactory.getLogger(GeminiSummaryService.class);
     private static final String EMPTY_DAILY_SUMMARY = "📭 No messages to summarize today.";
     private static final String EMPTY_MONTHLY_SUMMARY = "📭 No daily summaries found for this month.";
 
@@ -64,10 +63,12 @@ public class GeminiSummaryService {
                 4. Uses bullet points for clarity
                 5. Keeps it concise but informative
                 6. If images are provided, incorporate their context into the summary where relevant.
+                7. Includes source links for the original messages in key points. Use only the source links provided in the transcript, use source links in format <a href="<source_link>">(link)</a>).
                 
-                Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
+                Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure, you can use next HTML tags for formatting: <b>, <i>, <u>, <s>
+                For every key point, add one or more relevant source URLs in parentheses at the end of the point.
                 
-                Negative prompt: markdown, HTML, code blocks, tables, lists, or any formatting that may not render well in Telegram.
+                Negative prompt: markdown, code blocks, tables, lists, or any formatting that may not render well in Telegram.
                 %s
                 --- Chat Transcript Start ---
                 """.formatted(
@@ -79,8 +80,10 @@ public class GeminiSummaryService {
         parts.add(Part.fromText(systemPrompt));
 
         for (var message : messages) {
-            var messageText = "[%s] %s: %s".formatted(
+            var messageText = "[%s] %s | source: %s | %s: %s".formatted(
                     timeFormatter.format(message.timestamp()),
+                    messageReference(message),
+                    messageSource(message),
                     message.senderName(),
                     message.text()
             );
@@ -104,7 +107,30 @@ public class GeminiSummaryService {
             throw new RuntimeException("Gemini returned empty response");
         }
 
+
+
         return result;
+    }
+
+    private static String messageReference(ChatMessage message) {
+        if (message.telegramMessageId() == null) {
+            return "message id unavailable";
+        }
+
+        return "message #" + message.telegramMessageId();
+    }
+
+    private static String messageSource(ChatMessage message) {
+        if (message.telegramMessageId() == null) {
+            return "source link unavailable";
+        }
+
+        var chatId = Long.toString(message.chatId());
+        if (chatId.startsWith("-100")) {
+            return "https://t.me/c/%s/%d".formatted(chatId.substring(4), message.telegramMessageId());
+        }
+
+        return messageReference(message);
     }
 
     @Retryable(
@@ -150,4 +176,5 @@ public class GeminiSummaryService {
 
         return result;
     }
+
 }

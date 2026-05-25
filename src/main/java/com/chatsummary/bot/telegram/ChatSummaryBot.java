@@ -4,13 +4,15 @@ import com.chatsummary.bot.service.AdminNotificationService;
 import com.chatsummary.bot.service.ChatConfigService;
 import com.chatsummary.bot.service.GeminiSummaryService;
 import com.chatsummary.bot.service.MessageService;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
@@ -27,10 +29,10 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice;
 
+@Slf4j
 @Component
 public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
-    private static final Logger log = LoggerFactory.getLogger(ChatSummaryBot.class);
     private static final List<String> ADMIN_STATUSES = List.of("administrator", "creator");
     private static final List<String> INACTIVE_STATUSES = List.of("left", "kicked");
     private static final List<String> ACTIVE_STATUSES = List.of("member", "administrator");
@@ -44,6 +46,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             "/setprompt"
     );
 
+    @Getter
     private final String botToken;
     private final MessageService messageService;
     private final GeminiSummaryService geminiSummaryService;
@@ -64,11 +67,6 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         this.chatConfigService = chatConfigService;
         this.adminNotificationService = adminNotificationService;
         this.telegramClient = new OkHttpTelegramClient(botToken);
-    }
-
-    @Override
-    public String getBotToken() {
-        return botToken;
     }
 
     @Override
@@ -116,7 +114,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
                 var text = firstNonNull(message.getCaption(), message.getText(), "");
-                messageService.savePhotoMessage(chatId, senderName, message.getPhoto(), text);
+                messageService.savePhotoMessage(chatId, message.getMessageId(), senderName, message.getPhoto(), text);
             }
             return;
         }
@@ -126,14 +124,12 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         }
 
         var text = message.getText();
-        if (handleCommand(chatId, message.getFrom().getId(), text)) {
-            return;
-        }
-
-        if (!text.startsWith("/")) {
+        if(text.startsWith("/")) {
+           handleCommand(chatId, message.getFrom().getId(), text);
+        }else {
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
-                messageService.saveMessage(chatId, senderName, text);
+                messageService.saveMessage(chatId, message.getMessageId(), senderName, text);
             }
         }
     }
@@ -166,10 +162,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         }
 
         switch (command) {
-            case "/summary" ->
-                handleSummaryCommand(chatId);
-            case "/setcron" ->
-                handleSetCronCommand(chatId, text);
+            case "/summary" -> handleSummaryCommand(chatId);
+            case "/setcron" -> handleSetCronCommand(chatId, text);
             case "/enable", "/disable" -> {
                 var enable = text.startsWith("/enable");
                 chatConfigService.setEnabled(chatId, enable);
@@ -178,16 +172,18 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                         : "🚫 Bot disabled for this chat. Messages will no longer be saved.");
                 log.info("{} chat {}", enable ? "Enabled" : "Disabled", chatId);
             }
-            case "/setlanguage" ->
-                handleSetLanguageCommand(chatId, text);
-            case "/setmonthly" ->
-                handleSetMonthlyCommand(chatId, text);
-            case "/setprompt" ->
-                handleSetPromptCommand(chatId, text);
+            case "/setlanguage" -> handleSetLanguageCommand(chatId, text);
+            case "/setmonthly" -> handleSetMonthlyCommand(chatId, text);
+            case "/setprompt" -> handleSetPromptCommand(chatId, text);
+            case "/testlink" -> handleTestLink(chatId, text);
             default -> throw new IllegalStateException("Admin command is not handled: " + command);
         }
 
         return true;
+    }
+
+    private void handleTestLink(long chatId, String text) {
+        sendMessage(chatId, "[\\(link\\)](https://t.me/c/1605482413/704539)");
     }
 
     private boolean requireAdmin(long chatId, long userId) {
@@ -334,8 +330,10 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void sendMessage(long chatId, String text) {
         try {
+            log.info("Sending message to chat {}: {}", chatId, text);
             var message = SendMessage.builder()
                     .chatId(Long.toString(chatId))
+                    .parseMode("HTML")
                     .text(text)
                     .build();
             telegramClient.execute(message);
@@ -345,9 +343,15 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     }
 
     private static String commandOf(String text) {
-        return text.split("\\s+", 2)[0];
-    }
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        // Сначала берем первое слово (до пробела)
+        String firstWord = text.split("\\s+", 2)[0];
 
+        // Затем делим его по символу '@' и берем только левую часть (саму команду)
+        return firstWord.split("@", 2)[0];
+    }
     private static String displayName(User user, String defaultName) {
         if (user == null) {
             return defaultName;

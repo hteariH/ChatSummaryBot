@@ -9,33 +9,23 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.photo.PhotoSize;
 
+@Slf4j
+@RequiredArgsConstructor
 @Service
 public class MessageService {
-
-    private static final Logger log = LoggerFactory.getLogger(MessageService.class);
 
     private final ChatMessageRepository chatMessageRepository;
     private final DailySummaryRepository dailySummaryRepository;
     private final TelegramDownloadService telegramDownloadService;
 
-    public MessageService(
-            ChatMessageRepository chatMessageRepository,
-            DailySummaryRepository dailySummaryRepository,
-            TelegramDownloadService telegramDownloadService
-    ) {
-        this.chatMessageRepository = chatMessageRepository;
-        this.dailySummaryRepository = dailySummaryRepository;
-        this.telegramDownloadService = telegramDownloadService;
-    }
-
-    public void saveMessage(long chatId, String senderName, String text) {
-        chatMessageRepository.save(new ChatMessage(chatId, senderName, text));
-        log.debug("Saved message from '{}' in chat {}", senderName, chatId);
+    public void saveMessage(long chatId, Integer telegramMessageId, String senderName, String text) {
+        chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text));
+        log.info("Saved message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
     }
 
     public void saveDailySummary(long chatId, String text) {
@@ -72,14 +62,14 @@ public class MessageService {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    public void savePhotoMessage(long chatId, String senderName, List<PhotoSize> photo, String text) {
+    public void savePhotoMessage(long chatId, Integer telegramMessageId, String senderName, List<PhotoSize> photo, String text) {
         var fileId = photo.getFirst().getFileId();
-        log.info("Saving photo message from '{}' in chat {}", senderName, chatId);
+        log.info("Saving photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
         var downloadedPhoto = telegramDownloadService.downloadPhoto(fileId);
-        log.info("Downloaded photo message from '{}' in chat {}", senderName, chatId);
+        log.info("Downloaded photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
-        chatMessageRepository.save(new ChatMessage(chatId, senderName, text, List.of(downloadedPhoto)));
-        log.debug("Saved photo message from '{}' in chat {}", senderName, chatId);
+        chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text, List.of(downloadedPhoto)));
+        log.info("Saved photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
     }
 }

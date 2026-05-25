@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public record ChatMessage(
         @Id String id,
         @Indexed long chatId,
+        Integer telegramMessageId,
         String senderName,
         String text,
         List<ChatAttachment> attachments,
@@ -21,11 +22,11 @@ public record ChatMessage(
         timestamp = timestamp == null ? Instant.now() : timestamp;
     }
 
-    public ChatMessage(long chatId, String senderName, String text) {
-        this(null, chatId, senderName, text, List.of(), Instant.now());
+    public ChatMessage(long chatId, Integer telegramMessageId, String senderName, String text) {
+        this(null, chatId, telegramMessageId, senderName, text, List.of(), Instant.now());
     }
 
-    public ChatMessage(long chatId, String senderName, String text, List<ChatAttachment> attachments) {
-        this(null, chatId, senderName, text, attachments, Instant.now());
+    public ChatMessage(long chatId, Integer telegramMessageId, String senderName, String text, List<ChatAttachment> attachments) {
+        this(null, chatId, telegramMessageId, senderName, text, attachments, Instant.now());
     }
 }
