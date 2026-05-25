@@ -170,9 +170,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             return false;
         }
 
-        if (!requireAdmin(chatId, userId)) {
-            return true;
-        }
+//        if (!requireAdmin(chatId, userId)) {
+//            return true;
+//        }
 
         switch (command) {
             case "/summary" -> handleSummaryCommand(chatId);
