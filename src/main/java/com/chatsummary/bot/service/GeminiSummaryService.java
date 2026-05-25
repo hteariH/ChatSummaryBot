@@ -65,7 +65,7 @@ public class GeminiSummaryService {
                 6. If images are provided, incorporate their context into the summary where relevant.
                 7. Includes source links for the original messages in key points. Use only the source links provided in the transcript, use source links in format <a href="<source_link>">(link)</a>).
                 
-                Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure).
+                Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure, you can use next HTML tags for formatting: <b>, <i>, <u>, <s>
                 For every key point, add one or more relevant source URLs in parentheses at the end of the point.
                 
                 Negative prompt: markdown, code blocks, tables, lists, or any formatting that may not render well in Telegram.
