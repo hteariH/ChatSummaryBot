@@ -137,9 +137,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         }
 
         var text = message.getText();
-        if(text.startsWith("/")) {
-           handleCommand(chatId, message.getFrom().getId(), text);
-        }else {
+        if (text.startsWith("/")) {
+            handleCommand(chatId, message.getFrom().getId(), text);
+        } else {
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
                 messageService.saveMessage(chatId, message.getMessageId(), senderName, text);
@@ -170,9 +170,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             return false;
         }
 
-//        if (!requireAdmin(chatId, userId)) {
-//            return true;
-//        }
+        if (!requireAdmin(chatId, userId)) {
+            return true;
+        }
 
         switch (command) {
             case "/summary" -> handleSummaryCommand(chatId);
@@ -292,10 +292,11 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             var summary = geminiSummaryService.summarize(messages, config.getLanguage(), config.getCustomPrompt());
             sendMessage(chatId, "📋 *Summary*\n\n" + summary);
             chatConfigService.updateLastProcessedAt(chatId, Instant.now());
-
-            var remaining = chatConfigService.consumeSummaryCredit(chatId);
-            if (remaining == 0) {
-                sendAdWithRemoveOption(chatId);
+            if (chatConfigService.getChatConfig(chatId).getSummaryCredits() >= 0) {
+                var remaining = chatConfigService.consumeSummaryCredit(chatId);
+                if (remaining == 0) {
+                    sendAdWithRemoveOption(chatId);
+                }
             }
         } catch (Exception exception) {
             log.error("Error handling /summary command for chat {}", chatId, exception);
@@ -365,6 +366,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         // Затем делим его по символу '@' и берем только левую часть (саму команду)
         return firstWord.split("@", 2)[0];
     }
+
     private static String displayName(User user, String defaultName) {
         if (user == null) {
             return defaultName;
