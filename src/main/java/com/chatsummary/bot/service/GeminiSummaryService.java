@@ -160,9 +160,11 @@ public class GeminiSummaryService {
                 2. Tracks the progress of ongoing discussions or projects
                 3. Summarizes key outcomes and decisions
                 4. Is well-structured with clear sections
-                
-                Format the report nicely for Telegram.
-                
+
+                Format the report nicely for Telegram (use plain text with lots of emojis for readability and structure, you can use next HTML tags for formatting: <b>, <i>, <u>, <s>).
+
+                Negative prompt: markdown, code blocks, tables, lists, or any formatting that may not render well in Telegram.
+
                 --- Monthly Data ---
                 %s
                 --- End of Data ---
