@@ -31,26 +31,35 @@ public class VoiceStorageService {
     }
 
     public ChatAttachment saveVoice(long chatId, int messageId, byte[] data) {
+        return save(chatId, messageId, data, "audio/ogg", "ogg");
+    }
+
+    public ChatAttachment saveVideoNote(long chatId, int messageId, byte[] data) {
+        // Telegram video notes (кружочки) are MP4; Gemini reads the audio track from video/mp4.
+        return save(chatId, messageId, data, "video/mp4", "mp4");
+    }
+
+    private ChatAttachment save(long chatId, int messageId, byte[] data, String contentType, String extension) {
         if (getGlobalSize() + data.length > globalLimit) {
-            log.warn("Global storage limit reached. Cannot save voice message.");
+            log.warn("Global storage limit reached. Cannot save attachment.");
             return null;
         }
 
         if (getDailyChatSize(chatId) + data.length > dailyLimit) {
-            log.warn("Daily storage limit for chat {} reached. Cannot save voice message.", chatId);
+            log.warn("Daily storage limit for chat {} reached. Cannot save attachment.", chatId);
             return null;
         }
 
         Path chatDir = storageRoot.resolve(String.valueOf(chatId)).resolve(LocalDate.now().toString());
         try {
             Files.createDirectories(chatDir);
-            Path filePath = chatDir.resolve(messageId + ".ogg");
+            Path filePath = chatDir.resolve(messageId + "." + extension);
             Files.write(filePath, data);
 
-            log.info("Saved voice message to {}", filePath);
-            return new ChatAttachment("audio/ogg", null, filePath.toString(), (long) data.length);
+            log.info("Saved attachment to {}", filePath);
+            return new ChatAttachment(contentType, null, filePath.toString(), (long) data.length);
         } catch (IOException e) {
-            log.error("Failed to save voice message to disk", e);
+            log.error("Failed to save attachment to disk", e);
             return null;
         }
     }

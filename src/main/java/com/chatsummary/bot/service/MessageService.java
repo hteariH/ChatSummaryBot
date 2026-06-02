@@ -85,7 +85,7 @@ public class MessageService {
     public void saveVoiceMessage(long chatId, Integer telegramMessageId, String senderName, String fileId) {
         log.info("Saving voice message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
-        var voiceData = telegramDownloadService.downloadVoice(fileId);
+        var voiceData = telegramDownloadService.downloadBytes(fileId);
         var attachment = voiceStorageService.saveVoice(chatId, telegramMessageId, voiceData);
 
         if (attachment != null) {
@@ -99,11 +99,15 @@ public class MessageService {
     public void saveVideoNoteMessage(long chatId, Integer telegramMessageId, String senderName, String fileId) {
         log.info("Saving video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
-        var downloaded = telegramDownloadService.downloadVideoNote(fileId);
-        log.info("Downloaded video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+        var data = telegramDownloadService.downloadBytes(fileId);
+        var attachment = voiceStorageService.saveVideoNote(chatId, telegramMessageId, data);
 
-        chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, "[video note]", List.of(downloaded)));
-        log.info("Saved video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+        if (attachment != null) {
+            chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, "[video note]", List.of(attachment)));
+            log.info("Saved video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+        } else {
+            log.warn("Failed to save video note {} from '{}' in chat {} due to storage limits", telegramMessageId, senderName, chatId);
+        }
     }
 
 }

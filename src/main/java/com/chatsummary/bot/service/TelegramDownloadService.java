@@ -22,14 +22,19 @@ public class TelegramDownloadService {
         return download(fileId, null);
     }
 
-    public ChatAttachment downloadVideoNote(String fileId) {
-        // Telegram video notes (кружочки) are always MP4; Gemini reads the audio track from video/mp4.
-        return download(fileId, "video/mp4");
-    }
-
-    public ChatAttachment downloadVoice(String fileId) {
-        // Telegram voice messages are OGG/Opus.
-        return download(fileId, "audio/ogg");
+    public byte[] downloadBytes(String fileId) {
+        // Raw bytes; used for voice messages and video notes, which VoiceStorageService persists to disk.
+        try {
+            var file = telegramClient.execute(new GetFile(fileId));
+            if (file.getFilePath() == null) {
+                throw new IllegalStateException("Telegram didn't return file path");
+            }
+            try (var inputStream = telegramClient.downloadFileAsStream(file)) {
+                return inputStream.readAllBytes();
+            }
+        } catch (TelegramApiException | IOException exception) {
+            throw new IllegalStateException("Failed to download Telegram file", exception);
+        }
     }
 
     private ChatAttachment download(String fileId, String contentType) {
