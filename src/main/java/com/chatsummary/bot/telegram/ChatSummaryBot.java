@@ -119,6 +119,22 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             return;
         }
 
+        if (message.hasVideoNote()) {
+            var config = chatConfigService.getChatConfig(chatId);
+            if (config.isEnabled()) {
+                messageService.saveVideoNoteMessage(chatId, message.getMessageId(), senderName, message.getVideoNote().getFileId());
+            }
+            return;
+        }
+
+        if (message.hasVoice()) {
+            var config = chatConfigService.getChatConfig(chatId);
+            if (config.isEnabled()) {
+                messageService.saveVoiceMessage(chatId, message.getMessageId(), senderName, message.getVoice().getFileId());
+            }
+            return;
+        }
+
         if (!message.hasText()) {
             return;
         }

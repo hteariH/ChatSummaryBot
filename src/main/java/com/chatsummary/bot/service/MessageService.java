@@ -72,4 +72,24 @@ public class MessageService {
         chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text, List.of(downloadedPhoto)));
         log.info("Saved photo message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
     }
+
+    public void saveVideoNoteMessage(long chatId, Integer telegramMessageId, String senderName, String fileId) {
+        log.info("Saving video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+
+        var downloaded = telegramDownloadService.downloadVideoNote(fileId);
+        log.info("Downloaded video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+
+        chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, "[video note]", List.of(downloaded)));
+        log.info("Saved video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+    }
+
+    public void saveVoiceMessage(long chatId, Integer telegramMessageId, String senderName, String fileId) {
+        log.info("Saving voice message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+
+        var downloaded = telegramDownloadService.downloadVoice(fileId);
+        log.info("Downloaded voice message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+
+        chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, "[voice message]", List.of(downloaded)));
+        log.info("Saved voice message {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
+    }
 }

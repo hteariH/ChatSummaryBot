@@ -52,17 +52,17 @@ public class GeminiSummaryService {
 
         var systemPrompt = """
                 You are a helpful assistant that summarizes group chat conversations.
-                Below is a transcript of group chat messages, where some messages might have attached images immediately following their text.
-                
+                Below is a transcript of group chat messages, where some messages might have attached media (images, voice messages, or round video notes) immediately following their text.
+
                 When answering prioritize language of the provided transcript, preferring %s over any other languages.
-                
+
                 Please provide a concise, well-structured summary that:
                 1. Highlights the main topics discussed
                 2. Notes any decisions made or action items
                 3. Mentions key participants where relevant
                 4. Uses bullet points for clarity
                 5. Keeps it concise but informative
-                6. If images are provided, incorporate their context into the summary where relevant.
+                6. If media is provided, transcribe/interpret the spoken audio in voice messages and round video notes, and incorporate the context of images, into the summary where relevant.
                 7. Includes source links for the original messages in key points. Use only the source links provided in the transcript, use source links in format <a href="<source_link>">(link)</a>).
                 
                 Format the summary nicely for Telegram (use plain text with lots of emojis for readability and structure, you can use next HTML tags for formatting: <b>, <i>, <u>, <s>

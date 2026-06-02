@@ -19,6 +19,20 @@ public class TelegramDownloadService {
     }
 
     public ChatAttachment downloadPhoto(String fileId) {
+        return download(fileId, null);
+    }
+
+    public ChatAttachment downloadVideoNote(String fileId) {
+        // Telegram video notes (кружочки) are always MP4; Gemini reads the audio track from video/mp4.
+        return download(fileId, "video/mp4");
+    }
+
+    public ChatAttachment downloadVoice(String fileId) {
+        // Telegram voice messages are OGG/Opus.
+        return download(fileId, "audio/ogg");
+    }
+
+    private ChatAttachment download(String fileId, String contentType) {
         try {
             var file = telegramClient.execute(new GetFile(fileId));
             var filePath = file.getFilePath();
@@ -28,11 +42,13 @@ public class TelegramDownloadService {
 
             try (var inputStream = telegramClient.downloadFileAsStream(file)) {
                 var fileBytes = inputStream.readAllBytes();
-                var contentType = filePath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
-                return new ChatAttachment(contentType, new Binary(fileBytes));
+                var resolvedType = contentType != null
+                        ? contentType
+                        : (filePath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg");
+                return new ChatAttachment(resolvedType, new Binary(fileBytes));
             }
         } catch (TelegramApiException | IOException exception) {
-            throw new IllegalStateException("Failed to download Telegram photo", exception);
+            throw new IllegalStateException("Failed to download Telegram file", exception);
         }
     }
 }
