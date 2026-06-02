@@ -37,7 +37,7 @@ public class TelegramDownloadService {
             var file = telegramClient.execute(new GetFile(fileId));
             var filePath = file.getFilePath();
             if (filePath == null) {
-                throw new IllegalStateException("Telegram не вернул путь к файлу");
+                throw new IllegalStateException("Telegram didn't return file path");
             }
 
             try (var inputStream = telegramClient.downloadFileAsStream(file)) {

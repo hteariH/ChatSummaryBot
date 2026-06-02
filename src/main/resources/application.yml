@@ -23,6 +23,13 @@ summary:
   cron: ${SUMMARY_CRON:0 0 21 * * *}
   admin-chat-id: ${ADMIN_CHAT_ID}
 
+# Storage for attachments (voices)
+storage:
+  path: ${STORAGE_PATH:/app/storage}
+  limits:
+    daily-per-chat: ${STORAGE_DAILY_LIMIT:524288000} # 500MB
+    global: ${STORAGE_GLOBAL_LIMIT:10737418240} # 10GB
+
 logging:
   loki:
     url: ${LOKI_URL:}

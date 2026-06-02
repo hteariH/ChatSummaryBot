@@ -29,15 +29,18 @@ public class GeminiSummaryService {
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
             .withZone(ZoneId.systemDefault());
     private final Client client;
+    private final VoiceStorageService voiceStorageService;
 
     public GeminiSummaryService(
             @Value("${gemini.api-key}") String apiKey,
-            @Value("${gemini.model}") String model
+            @Value("${gemini.model}") String model,
+            VoiceStorageService voiceStorageService
     ) {
         this.model = model;
         this.client = Client.builder()
                 .apiKey(apiKey)
                 .build();
+        this.voiceStorageService = voiceStorageService;
     }
 
     @Retryable(
@@ -52,8 +55,8 @@ public class GeminiSummaryService {
 
         var systemPrompt = """
                 You are a helpful assistant that summarizes group chat conversations.
-                Below is a transcript of group chat messages, where some messages might have attached media (images, voice messages, or round video notes) immediately following their text.
-
+                Below is a transcript of group chat messages, where some messages might have attached images or voice messages immediately following their text.
+                
                 When answering prioritize language of the provided transcript, preferring %s over any other languages.
 
                 Please provide a concise, well-structured summary that:
@@ -90,7 +93,14 @@ public class GeminiSummaryService {
             parts.add(Part.fromText(messageText));
 
             for (var attachment : message.attachments()) {
-                parts.add(Part.fromBytes(attachment.data().getData(), attachment.contentType()));
+                if (attachment.data() != null) {
+                    parts.add(Part.fromBytes(attachment.data().getData(), attachment.contentType()));
+                } else if (attachment.filePath() != null) {
+                    byte[] voiceData = voiceStorageService.loadVoice(attachment.filePath());
+                    if (voiceData != null) {
+                        parts.add(Part.fromBytes(voiceData, attachment.contentType()));
+                    }
+                }
             }
         }
 

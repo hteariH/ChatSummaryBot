@@ -12,7 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableRetry
 public class ChatSummaryBotApplication {
 
-    static void main(String[] args) {
+    public static void main(String[] args) {
         log.info("Starting ChatSummaryBot Application...");
         SpringApplication.run(ChatSummaryBotApplication.class, args);
     }
