@@ -170,8 +170,10 @@ public class GeminiSummaryService {
                 2. Tracks the progress of ongoing discussions or projects
                 3. Summarizes key outcomes and decisions
                 4. Is well-structured with clear sections
+                5. Includes source links for key points. Use only the source links already present in the daily summaries below, and keep them in the format <a href="<source_link>">(link)</a>.
 
-                Format the report nicely for Telegram (use plain text with lots of emojis for readability and structure, you can use next HTML tags for formatting: <b>, <i>, <u>, <s>).
+                Format the report nicely for Telegram (use plain text with lots of emojis for readability and structure, you can use next HTML tags for formatting: <b>, <i>, <u>, <s>, <a>).
+                For every key point, add one or more relevant source URLs in parentheses at the end of the point.
 
                 Negative prompt: markdown, code blocks, tables, lists, or any formatting that may not render well in Telegram.
 
