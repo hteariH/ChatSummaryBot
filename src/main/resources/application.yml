@@ -13,7 +13,7 @@ telegram:
 # Gemini API
 gemini:
   api-key: ${GEMINI_API_KEY}
-  model: ${GEMINI_MODEL:gemini-3-flash-preview}
+  model: ${GEMINI_MODEL:gemini-3.5-flash}
   retry:
     max-attempts: ${GEMINI_RETRY_MAX_ATTEMPTS:3}
     delay: ${GEMINI_RETRY_DELAY:1000}
