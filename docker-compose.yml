@@ -22,6 +22,8 @@ services:
       - bot-storage:/app/storage
     networks:
       - bot-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  
 
   mongodb:
     image: mongo:7
