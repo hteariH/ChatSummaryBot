@@ -57,7 +57,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
     private final OkHttpTelegramClient telegramClient;
-    private final ExecutorService llmExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService llmExecutor = Executors.newFixedThreadPool(3);
 
     @Autowired
     private GeneralLLMService llmService;
