@@ -157,13 +157,13 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             if (config.isEnabled()) {
                 messageService.saveMessage(chatId, message.getMessageId(), senderName, text);
             }
-            respondIfAskForLink(chatId, message.getFrom().getId(), text);
+            respondIfAskForLink(chatId, message.getMessageId(), text);
         }
     }
 
     // SPECIAL CASE FOR CHAT -1001605482413 (Роздягальня)
 
-    private void respondIfAskForLink(Long chatId, Long id, String text) {
+    private void respondIfAskForLink(Long chatId, Integer messageId, String text) {
         log.info("Checking if message in chat {} asks for link: {}", chatId, text);
         llmExecutor.submit(() -> {
             try {
@@ -177,7 +177,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                         return;
                     }
                     log.info("Responding to message in chat {} with: {}", chatId, response);
-                    sendMessage(chatId, response);
+                    sendMessage(chatId, messageId, response);
                 }
             } catch (Exception e) {
                 log.error("Error in respondIfAskForLink for chatId {}: {}", chatId, e.getMessage(), e);
@@ -386,6 +386,21 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             log.info("Sending message to chat {}: {}", chatId, text);
             var message = SendMessage.builder()
                     .chatId(Long.toString(chatId))
+                    .parseMode("HTML")
+                    .text(text)
+                    .build();
+            telegramClient.execute(message);
+        } catch (Exception exception) {
+            log.error("Failed to send message to chat {}", chatId, exception);
+        }
+    }
+
+    public void sendMessage(long chatId, Integer messageId, String text) {
+        try {
+            log.info("Sending message to chat {}: {}", chatId, text);
+            var message = SendMessage.builder()
+                    .chatId(Long.toString(chatId))
+                    .replyToMessageId(messageId)
                     .parseMode("HTML")
                     .text(text)
                     .build();
