@@ -14,8 +14,8 @@ public class OpenAiConfig {
     public OpenAiChatModel openAiChatModel(
             @Value("${spring.ai.openai.base-url:http://host.docker.internal:1234/v1}") String baseUrl,
             @Value("${spring.ai.openai.model:qwen/qwen3-4b}") String model,
-            @Value("${spring.ai.openai.timeout:PT120S}") String timeout,
-            @Value("${spring.ai.openai.max-retries:1}") int maxRetries
+            @Value("${spring.ai.openai.timeout:PT150S}") String timeout,
+            @Value("${spring.ai.openai.max-retries:0}") int maxRetries
            ) {
 
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
