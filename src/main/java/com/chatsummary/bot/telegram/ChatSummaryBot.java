@@ -3,6 +3,7 @@ package com.chatsummary.bot.telegram;
 import com.chatsummary.bot.service.AdminNotificationService;
 import com.chatsummary.bot.service.ChatConfigService;
 import com.chatsummary.bot.service.GeminiSummaryService;
+import com.chatsummary.bot.service.GeneralLLMService;
 import com.chatsummary.bot.service.MessageService;
 
 import java.time.Instant;
@@ -10,9 +11,13 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
@@ -43,8 +48,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             "/disable",
             "/setlanguage",
             "/setmonthly",
-            "/setprompt"
-    );
+            "/setprompt");
 
     @Getter
     private final String botToken;
@@ -53,14 +57,17 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
     private final OkHttpTelegramClient telegramClient;
+    private final ExecutorService llmExecutor = Executors.newSingleThreadExecutor();
+
+    @Autowired
+    private GeneralLLMService llmService;
 
     public ChatSummaryBot(
             @Value("${telegram.bot.token}") String botToken,
             MessageService messageService,
             GeminiSummaryService geminiSummaryService,
             ChatConfigService chatConfigService,
-            AdminNotificationService adminNotificationService
-    ) {
+            AdminNotificationService adminNotificationService) {
         this.botToken = botToken;
         this.messageService = messageService;
         this.geminiSummaryService = geminiSummaryService;
@@ -102,7 +109,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             var stars = payment.getTotalAmount();
             var donorName = displayName(message.getFrom(), "Someone");
             chatConfigService.addSummaryCredits(message.getChatId(), stars);
-            sendMessage(message.getChatId(), "✅ Спасибо, %s! Добавлено %d саммари без рекламы.".formatted(donorName, stars));
+            sendMessage(message.getChatId(),
+                    "✅ Спасибо, %s! Добавлено %d саммари без рекламы.".formatted(donorName, stars));
             adminNotificationService.notifyPayment(message.getChatId(), donorName, stars, stars);
             return;
         }
@@ -122,7 +130,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         if (message.hasVideoNote()) {
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
-                messageService.saveVideoNoteMessage(chatId, message.getMessageId(), senderName, message.getVideoNote().getFileId());
+                messageService.saveVideoNoteMessage(chatId, message.getMessageId(), senderName,
+                        message.getVideoNote().getFileId());
             }
             return;
         }
@@ -130,7 +139,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         if (message.hasVoice()) {
             var config = chatConfigService.getChatConfig(chatId);
             if (config.isEnabled()) {
-                messageService.saveVoiceMessage(chatId, message.getMessageId(), senderName, message.getVoice().getFileId());
+                messageService.saveVoiceMessage(chatId, message.getMessageId(), senderName,
+                        message.getVoice().getFileId());
             }
             return;
         }
@@ -147,7 +157,32 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             if (config.isEnabled()) {
                 messageService.saveMessage(chatId, message.getMessageId(), senderName, text);
             }
+            respondIfAskForLink(chatId, message.getFrom().getId(), text);
         }
+    }
+
+    // SPECIAL CASE FOR CHAT -1001605482413 (Роздягальня)
+
+    private void respondIfAskForLink(Long chatId, Long id, String text) {
+        log.info("Checking if message in chat {} asks for link: {}", chatId, text);
+        llmExecutor.submit(() -> {
+            try {
+                log.info("VirtualThread: checking message in chat {} asks for link {} ", chatId, text);
+                if (chatId == -1001605482413L) {
+                    String response = llmService.generateWithLLM(
+                            "[SYSTEM PROMPT] if next message asks user @Mamoru_5 or someone Named Олексій or Льоха - give in response this link: https://acestrlms.pages.dev/, OTHERWISE reply only with <NO REPLY> [USER PROMPT]"
+                                    + text,
+                            "qwen/qwen3-4b");
+                    if (response.toUpperCase().contains("<NO REPLY>")) {
+                        return;
+                    }
+                    log.info("Responding to message in chat {} with: {}", chatId, response);
+                    sendMessage(chatId, response);
+                }
+            } catch (Exception e) {
+                log.error("Error in respondIfAskForLink for chatId {}: {}", chatId, e.getMessage(), e);
+            }
+        });
     }
 
     private void handleChatMembershipChange(Update update) {
@@ -162,8 +197,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                     chat.getId(),
                     firstNonNull(chat.getTitle(), "Unknown"),
                     chat.getType(),
-                    addedBy
-            );
+                    addedBy);
         }
     }
 
@@ -263,7 +297,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
         var cron = parts[1].trim();
         if (!CronExpression.isValidExpression(cron)) {
-            sendMessage(chatId, "⚠️ Invalid cron expression. Please use the Spring/Quartz format: `sec min hour day month dow`.");
+            sendMessage(chatId,
+                    "⚠️ Invalid cron expression. Please use the Spring/Quartz format: `sec min hour day month dow`.");
             return;
         }
 
@@ -305,7 +340,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             log.error("Error handling /summary command for chat {}", chatId, exception);
             sendMessage(chatId, "⚠️ Sorry, failed to generate summary. Please try again later.");
             var chatTitle = getChatTitle(chatId);
-            adminNotificationService.notifyOnFailure(chatId, chatTitle, "Summary generation (/summary command)", exception);
+            adminNotificationService.notifyOnFailure(chatId, chatTitle, "Summary generation (/summary command)",
+                    exception);
         }
     }
 
@@ -377,8 +413,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
         var fullName = "%s %s".formatted(
                 firstNonNull(user.getFirstName(), ""),
-                firstNonNull(user.getLastName(), "")
-        ).trim();
+                firstNonNull(user.getLastName(), "")).trim();
 
         if (!fullName.isBlank()) {
             return fullName;

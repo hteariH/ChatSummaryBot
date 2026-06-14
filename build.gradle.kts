@@ -18,6 +18,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-aspectj:4.0.3")
     implementation("org.springframework.retry:spring-retry:2.0.11")
 
+    implementation(platform("org.springframework.ai:spring-ai-bom:2.0.0"))
+    implementation("org.springframework.ai:spring-ai-openai")
     // Telegram Bot
     implementation("org.telegram:telegrambots-springboot-longpolling-starter:9.6.0")
     implementation("org.telegram:telegrambots-client:9.6.0")
