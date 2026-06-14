@@ -57,7 +57,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
     private final OkHttpTelegramClient telegramClient;
-    private final ExecutorService llmExecutor = Executors.newFixedThreadPool(3);
+    private final ExecutorService llmExecutor = Executors.newSingleThreadExecutor();
 
     @Autowired
     private GeneralLLMService llmService;
@@ -170,7 +170,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                 log.info("VirtualThread: checking message in chat {} asks for link {} ", chatId, text);
                 if (chatId == -1001605482413L) {
                     String response = llmService.generateWithLLM(
-                            "[SYSTEM PROMPT] if next message asks user @Mamoru_5 or someone Named Олексій or Льоха - give in response this link: https://acestrlms.pages.dev/, OTHERWISE reply only with <NO REPLY> [USER PROMPT]"
+                            "[SYSTEM PROMT] if next message asks user @Mamoru_5 or someone Named Олексій or Льоха for some link with racing translations - give in response this link: https://acestrlms.pages.dev/, OTHERWISE reply only with <NO REPLY> [USER PROMPT]"
                                     + text,
                             "qwen/qwen3-4b");
                     if (response.toUpperCase().contains("<NO REPLY>")) {
