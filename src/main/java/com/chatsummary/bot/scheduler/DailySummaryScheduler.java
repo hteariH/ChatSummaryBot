@@ -5,6 +5,7 @@ import com.chatsummary.bot.service.ChatConfigService;
 import com.chatsummary.bot.service.GeminiSummaryService;
 import com.chatsummary.bot.service.MessageService;
 import com.chatsummary.bot.telegram.ChatSummaryBot;
+import com.chatsummary.bot.util.TelegramLinks;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -80,7 +81,19 @@ public class DailySummaryScheduler {
 
             log.info("Sending scheduled summary for chat {} since {}...", chatId, since);
             var summary = geminiSummaryService.summarize(messages, language, customPrompt);
-            chatSummaryBot.sendMessage(chatId, "📋 *Summary*\n\n" + summary);
+
+            var config = chatConfigService.getChatConfig(chatId);
+            var prevMessageId = config.getLastSummaryMessageId();
+            var prevText = config.getLastSummaryText();
+
+            var body = "📋 *Summary*\n\n" + summary;
+            var textToSend = withPreviousLink(chatId, body, prevMessageId);
+            var sentMessageId = chatSummaryBot.sendMessageReturningId(chatId, textToSend);
+
+            if (sentMessageId != null) {
+                linkPreviousToCurrent(chatId, prevMessageId, prevText, sentMessageId);
+                chatConfigService.updateLastSummary(chatId, sentMessageId, textToSend);
+            }
 
             if (chatConfigService.getChatConfig(chatId).isMonthlySummaryEnabled()) {
                 messageService.saveDailySummary(chatId, summary);
@@ -104,5 +117,25 @@ public class DailySummaryScheduler {
             adminNotificationService.notifyOnFailure(chatId, chatTitle, "Scheduled Summary", exception, true);
             return false;
         }
+    }
+
+    private String withPreviousLink(long chatId, String body, Integer prevMessageId) {
+        if (prevMessageId == null) {
+            return body;
+        }
+
+        return TelegramLinks.messageUrl(chatId, prevMessageId)
+                .map(url -> body + "\n\n<a href=\"%s\">⬆️</a>".formatted(url))
+                .orElse(body);
+    }
+
+    private void linkPreviousToCurrent(long chatId, Integer prevMessageId, String prevText, int currentMessageId) {
+        if (prevMessageId == null || prevText == null) {
+            return;
+        }
+
+        TelegramLinks.messageUrl(chatId, currentMessageId).ifPresent(url ->
+                chatSummaryBot.editMessageText(chatId, prevMessageId,
+                        prevText + "\n<a href=\"%s\">⬇️</a>".formatted(url)));
     }
 }
