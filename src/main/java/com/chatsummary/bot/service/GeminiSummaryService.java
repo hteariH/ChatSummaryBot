@@ -2,6 +2,7 @@ package com.chatsummary.bot.service;
 
 import com.chatsummary.bot.model.ChatMessage;
 import com.chatsummary.bot.model.DailySummary;
+import com.chatsummary.bot.util.TelegramLinks;
 import com.google.genai.Client;
 import com.google.genai.errors.ServerException;
 import com.google.genai.types.Content;
@@ -135,12 +136,8 @@ public class GeminiSummaryService {
             return "source link unavailable";
         }
 
-        var chatId = Long.toString(message.chatId());
-        if (chatId.startsWith("-100")) {
-            return "https://t.me/c/%s/%d".formatted(chatId.substring(4), message.telegramMessageId());
-        }
-
-        return messageReference(message);
+        return TelegramLinks.messageUrl(message.chatId(), message.telegramMessageId())
+                .orElseGet(() -> messageReference(message));
     }
 
     @Retryable(

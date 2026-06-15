@@ -80,6 +80,13 @@ public class ChatConfigService {
         chatConfigRepository.save(config);
     }
 
+    public void updateLastSummary(long chatId, Integer messageId, String text) {
+        var config = getChatConfig(chatId);
+        config.setLastSummaryMessageId(messageId);
+        config.setLastSummaryText(text);
+        chatConfigRepository.save(config);
+    }
+
     public void addSummaryCredits(long chatId, int stars) {
         var config = getChatConfig(chatId);
         config.setSummaryCredits(config.getSummaryCredits() + stars);
