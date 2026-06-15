@@ -30,6 +30,7 @@ import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChat;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember;
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice;
@@ -392,6 +393,36 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             telegramClient.execute(message);
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
+        }
+    }
+
+    public Integer sendMessageReturningId(long chatId, String text) {
+        try {
+            log.info("Sending message to chat {}: {}", chatId, text);
+            var message = SendMessage.builder()
+                    .chatId(Long.toString(chatId))
+                    .parseMode("HTML")
+                    .text(text)
+                    .build();
+            var sent = telegramClient.execute(message);
+            return sent.getMessageId();
+        } catch (Exception exception) {
+            log.error("Failed to send message to chat {}", chatId, exception);
+            return null;
+        }
+    }
+
+    public void editMessageText(long chatId, Integer messageId, String text) {
+        try {
+            var edit = EditMessageText.builder()
+                    .chatId(Long.toString(chatId))
+                    .messageId(messageId)
+                    .parseMode("HTML")
+                    .text(text)
+                    .build();
+            telegramClient.execute(edit);
+        } catch (Exception exception) {
+            log.warn("Failed to edit message {} in chat {}", messageId, chatId, exception);
         }
     }
 

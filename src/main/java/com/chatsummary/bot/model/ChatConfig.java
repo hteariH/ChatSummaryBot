@@ -28,6 +28,8 @@ public final class ChatConfig {
     private String customPrompt;
     private boolean monthlySummaryEnabled;
     private Instant lastMonthlyProcessedAt;
+    private Integer lastSummaryMessageId;
+    private String lastSummaryText;
 
     public ChatConfig(long chatId, String cron) {
         this.chatId = chatId;
