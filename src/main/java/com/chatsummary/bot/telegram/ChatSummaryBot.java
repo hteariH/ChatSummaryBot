@@ -158,7 +158,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             if (config.isEnabled()) {
                 messageService.saveMessage(chatId, message.getMessageId(), senderName, text);
             }
-            respondIfAskForLink(chatId, message.getMessageId(), text);
+            //respondIfAskForLink(chatId, message.getMessageId(), text);
         }
     }
 
