@@ -39,6 +39,11 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-data-mongodb-test")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation(platform("org.testcontainers:testcontainers-bom:1.20.4"))
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:mongodb")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -48,5 +53,11 @@ java {
 }
 
 tasks.withType<Test> {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Integration tests (@Tag("integration")) need a Docker daemon for Testcontainers.
+        // Skip them in CI (GitHub Actions et al. set CI=true) or when -PexcludeIntegration is passed.
+        if (System.getenv("CI") != null || project.hasProperty("excludeIntegration")) {
+            excludeTags("integration")
+        }
+    }
 }

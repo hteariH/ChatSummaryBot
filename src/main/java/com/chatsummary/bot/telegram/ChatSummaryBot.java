@@ -1,5 +1,6 @@
 package com.chatsummary.bot.telegram;
 
+import com.chatsummary.bot.service.AdService;
 import com.chatsummary.bot.service.AdminNotificationService;
 import com.chatsummary.bot.service.ChatConfigService;
 import com.chatsummary.bot.service.GeminiSummaryService;
@@ -25,15 +26,12 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
 import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
-import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChat;
 import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember;
-import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
-import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice;
 
 @Slf4j
 @Component
@@ -57,6 +55,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     private final GeminiSummaryService geminiSummaryService;
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
+    private final AdService adService;
     private final OkHttpTelegramClient telegramClient;
     private final ExecutorService llmExecutor = Executors.newSingleThreadExecutor();
 
@@ -68,12 +67,14 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             MessageService messageService,
             GeminiSummaryService geminiSummaryService,
             ChatConfigService chatConfigService,
-            AdminNotificationService adminNotificationService) {
+            AdminNotificationService adminNotificationService,
+            AdService adService) {
         this.botToken = botToken;
         this.messageService = messageService;
         this.geminiSummaryService = geminiSummaryService;
         this.chatConfigService = chatConfigService;
         this.adminNotificationService = adminNotificationService;
+        this.adService = adService;
         this.telegramClient = new OkHttpTelegramClient(botToken);
     }
 
@@ -85,12 +86,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     @Override
     public void consume(Update update) {
         if (update.hasPreCheckoutQuery()) {
-            var query = update.getPreCheckoutQuery();
-            try {
-                telegramClient.execute(new AnswerPreCheckoutQuery(query.getId(), true));
-            } catch (Exception exception) {
-                log.warn("Failed to answer pre-checkout query", exception);
-            }
+            adService.answerPreCheckout(update.getPreCheckoutQuery());
             return;
         }
 
@@ -106,13 +102,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         var message = update.getMessage();
 
         if (message.hasSuccessfulPayment()) {
-            var payment = message.getSuccessfulPayment();
-            var stars = payment.getTotalAmount();
+            var stars = message.getSuccessfulPayment().getTotalAmount();
             var donorName = displayName(message.getFrom(), "Someone");
-            chatConfigService.addSummaryCredits(message.getChatId(), stars);
-            sendMessage(message.getChatId(),
-                    "✅ Спасибо, %s! Добавлено %d саммари без рекламы.".formatted(donorName, stars));
-            adminNotificationService.notifyPayment(message.getChatId(), donorName, stars, stars);
+            adService.handleSuccessfulPayment(message.getChatId(), donorName, stars);
             return;
         }
 
@@ -160,30 +152,6 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             }
             //respondIfAskForLink(chatId, message.getMessageId(), text);
         }
-    }
-
-    // SPECIAL CASE FOR CHAT -1001605482413 (Роздягальня)
-
-    private void respondIfAskForLink(Long chatId, Integer messageId, String text) {
-        log.info("Checking if message in chat {} asks for link: {}", chatId, text);
-        llmExecutor.submit(() -> {
-            try {
-                log.info("VirtualThread: checking message in chat {} asks for link {} ", chatId, text);
-                if (chatId == -1001605482413L) {
-                    String response = llmService.generateWithLLM(
-                            "[SYSTEM PROMT] if next message asks user @Mamoru_5 or someone Named Олексій or Льоха for some link with racing translations - give in response this link: https://acestrlms.pages.dev/, OTHERWISE reply only with <NO REPLY> [USER PROMPT]"
-                                    + text,
-                            "qwen/qwen3-4b");
-                    if (response.toUpperCase().contains("<NO REPLY>")) {
-                        return;
-                    }
-                    log.info("Responding to message in chat {} with: {}", chatId, response);
-                    sendMessage(chatId, messageId, response);
-                }
-            } catch (Exception e) {
-                log.error("Error in respondIfAskForLink for chatId {}: {}", chatId, e.getMessage(), e);
-            }
-        });
     }
 
     private void handleChatMembershipChange(Update update) {
@@ -331,34 +299,13 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             var summary = geminiSummaryService.summarize(messages, config.getLanguage(), config.getCustomPrompt());
             sendMessage(chatId, "📋 *Summary*\n\n" + summary);
             chatConfigService.updateLastProcessedAt(chatId, Instant.now());
-            if (chatConfigService.getChatConfig(chatId).getSummaryCredits() >= 0) {
-                var remaining = chatConfigService.consumeSummaryCredit(chatId);
-                if (remaining == 0) {
-                    sendAdWithRemoveOption(chatId);
-                }
-            }
+            adService.consumeCreditAndMaybeShowAd(chatId);
         } catch (Exception exception) {
             log.error("Error handling /summary command for chat {}", chatId, exception);
             sendMessage(chatId, "⚠️ Sorry, failed to generate summary. Please try again later.");
             var chatTitle = getChatTitle(chatId);
             adminNotificationService.notifyOnFailure(chatId, chatTitle, "Summary generation (/summary command)",
                     exception);
-        }
-    }
-
-    public void sendAdWithRemoveOption(long chatId) {
-        try {
-            var invoice = SendInvoice.builder()
-                    .chatId(Long.toString(chatId))
-                    .title("Убрать рекламу")
-                    .description("30 ⭐ = 30 саммари без рекламы для этого чата.")
-                    .payload("summary_credits")
-                    .currency("XTR")
-                    .price(new LabeledPrice("30 звёзд = 30 саммари", 30))
-                    .build();
-            telegramClient.execute(invoice);
-        } catch (Exception exception) {
-            log.error("Failed to send invoice to chat {}", chatId, exception);
         }
     }
 

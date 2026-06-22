@@ -1,5 +1,6 @@
 package com.chatsummary.bot.scheduler;
 
+import com.chatsummary.bot.service.AdService;
 import com.chatsummary.bot.service.AdminNotificationService;
 import com.chatsummary.bot.service.ChatConfigService;
 import com.chatsummary.bot.service.GeminiSummaryService;
@@ -28,6 +29,7 @@ public class DailySummaryScheduler {
     private final ChatSummaryBot chatSummaryBot;
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
+    private final AdService adService;
 
     @Scheduled(fixedRate = 60_000)
     public void sendScheduledSummaries() throws InterruptedException {
@@ -99,14 +101,7 @@ public class DailySummaryScheduler {
                 messageService.saveDailySummary(chatId, summary);
             }
 
-            if(chatConfigService.getChatConfig(chatId).getSummaryCredits()>=0) {
-                log.info("Checking for credits for chat {}...", chatId);
-                var remaining = chatConfigService.consumeSummaryCredit(chatId);
-                if (remaining == 0) {
-                    log.info("sending AD for chat{}...", chatId);
-                     chatSummaryBot.sendAdWithRemoveOption(chatId);
-                }
-            }
+            adService.consumeCreditAndMaybeShowAd(chatId);
 
             messageService.clearOldMessages(chatId, Instant.now());
             log.info("Sent scheduled summary to chat {} ({} messages)", chatId, messages.size());
