@@ -6,6 +6,7 @@ import com.chatsummary.bot.util.TelegramLinks;
 import com.google.genai.Client;
 import com.google.genai.errors.ServerException;
 import com.google.genai.types.Content;
+import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.Part;
 
 import java.time.ZoneId;
@@ -31,17 +32,20 @@ public class GeminiSummaryService {
             .withZone(ZoneId.systemDefault());
     private final Client client;
     private final VoiceStorageService voiceStorageService;
+    private final AdminNotificationService adminNotificationService;
 
     public GeminiSummaryService(
             @Value("${gemini.api-key}") String apiKey,
             @Value("${gemini.model}") String model,
-            VoiceStorageService voiceStorageService
+            VoiceStorageService voiceStorageService,
+            AdminNotificationService adminNotificationService
     ) {
         this.model = model;
         this.client = Client.builder()
                 .apiKey(apiKey)
                 .build();
         this.voiceStorageService = voiceStorageService;
+        this.adminNotificationService = adminNotificationService;
     }
 
     @Retryable(
@@ -112,15 +116,25 @@ public class GeminiSummaryService {
                 .build();
 
         var response = client.models.generateContent(model, content, null);
+        reportTokenUsage("summary", messages.getFirst().chatId(), response);
         var result = response.text();
         if (result == null) {
             log.warn("Gemini returned empty response for chat summary");
             throw new RuntimeException("Gemini returned empty response");
         }
 
-
-
         return result;
+    }
+
+    private void reportTokenUsage(String operation, long chatId, GenerateContentResponse response) {
+        response.usageMetadata().ifPresent(usage -> adminNotificationService.notifyTokenUsage(
+                operation,
+                chatId,
+                usage.promptTokenCount().orElse(0),
+                usage.thoughtsTokenCount().orElse(0),
+                usage.candidatesTokenCount().orElse(0),
+                usage.totalTokenCount().orElse(0)
+        ));
     }
 
     private static String messageReference(ChatMessage message) {
@@ -180,6 +194,7 @@ public class GeminiSummaryService {
                 """.formatted(language, allSummariesText);
 
         var response = client.models.generateContent(model, prompt, null);
+        reportTokenUsage("monthly summary", summaries.getFirst().chatId(), response);
         var result = response.text();
         if (result == null) {
             throw new RuntimeException("Gemini returned empty response for monthly summary");

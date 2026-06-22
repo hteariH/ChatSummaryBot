@@ -43,6 +43,21 @@ public class AdminNotificationService {
         log.info("Payment of {} star(s) from {} in chat {}, added {} credits", stars, donorName, chatId, creditsAdded);
     }
 
+    public void notifyTokenUsage(String operation, long chatId, int promptTokens, int thoughtsTokens,
+                                 int candidatesTokens, int totalTokens) {
+        var message = """
+                📊 *Gemini token usage*
+                *Operation:* %s
+                *Chat ID:* %d
+                *Prompt:* %d
+                *Thoughts:* %d
+                *Candidates:* %d
+                *Total:* %d""".formatted(operation, chatId, promptTokens, thoughtsTokens, candidatesTokens, totalTokens);
+        chatSummaryBot.sendMessage(adminChatId, message);
+        log.info("Gemini token usage ({}) for chat {}: prompt={}, thoughts={}, candidates={}, total={}",
+                operation, chatId, promptTokens, thoughtsTokens, candidatesTokens, totalTokens);
+    }
+
     public void notifyOnFailure(long chatId, String groupName, String operation, Exception exception) {
         notifyOnFailure(chatId, groupName, operation, exception, false);
     }

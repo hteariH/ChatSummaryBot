@@ -15,7 +15,8 @@ class GeminiSummaryServiceTest {
     void setUp() {
         // Client.builder() performs no network call at construction, so a dummy key is safe.
         service = new GeminiSummaryService("dummy-key", "gemini-3-flash-preview",
-                Mockito.mock(VoiceStorageService.class));
+                Mockito.mock(VoiceStorageService.class),
+                Mockito.mock(AdminNotificationService.class));
     }
 
     @Test
