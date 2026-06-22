@@ -1,6 +1,7 @@
 package com.chatsummary.bot.service;
 
 import com.chatsummary.bot.telegram.ChatSummaryBot;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -12,6 +13,7 @@ public class AdminNotificationService {
 
     private final long adminChatId;
     private final ChatSummaryBot chatSummaryBot;
+    private final AtomicLong totalOutputTokens = new AtomicLong();
 
     public AdminNotificationService(
             @Value("${summary.admin-chat-id}") long adminChatId,
@@ -45,6 +47,9 @@ public class AdminNotificationService {
 
     public void notifyTokenUsage(String operation, long chatId, int promptTokens, int thoughtsTokens,
                                  int candidatesTokens, int totalTokens) {
+        // Gemini bills thinking + answer tokens as output.
+        var outputTokens = thoughtsTokens + candidatesTokens;
+        var cumulativeOutputTokens = totalOutputTokens.addAndGet(outputTokens);
         var message = """
                 📊 *Gemini token usage*
                 *Operation:* %s
@@ -52,10 +57,15 @@ public class AdminNotificationService {
                 *Prompt:* %d
                 *Thoughts:* %d
                 *Candidates:* %d
-                *Total:* %d""".formatted(operation, chatId, promptTokens, thoughtsTokens, candidatesTokens, totalTokens);
+                *Total:* %d
+                *Output (this call):* %d
+                *Output (accumulated):* %d""".formatted(operation, chatId, promptTokens, thoughtsTokens,
+                candidatesTokens, totalTokens, outputTokens, cumulativeOutputTokens);
         chatSummaryBot.sendMessage(adminChatId, message);
-        log.info("Gemini token usage ({}) for chat {}: prompt={}, thoughts={}, candidates={}, total={}",
-                operation, chatId, promptTokens, thoughtsTokens, candidatesTokens, totalTokens);
+        log.info("Gemini token usage ({}) for chat {}: prompt={}, thoughts={}, candidates={}, total={}, "
+                        + "output={}, accumulatedOutput={}",
+                operation, chatId, promptTokens, thoughtsTokens, candidatesTokens, totalTokens,
+                outputTokens, cumulativeOutputTokens);
     }
 
     public void notifyOnFailure(long chatId, String groupName, String operation, Exception exception) {
