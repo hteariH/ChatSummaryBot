@@ -104,7 +104,7 @@ public class DailySummaryScheduler {
                 var remaining = chatConfigService.consumeSummaryCredit(chatId);
                 if (remaining == 0) {
                     log.info("sending AD for chat{}...", chatId);
-                    // chatSummaryBot.sendAdWithRemoveOption(chatId);
+                     chatSummaryBot.sendAdWithRemoveOption(chatId);
                 }
             }
 
