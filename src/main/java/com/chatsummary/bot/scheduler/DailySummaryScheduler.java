@@ -92,10 +92,14 @@ public class DailySummaryScheduler {
             var textToSend = withPreviousLink(chatId, body, prevMessageId);
             var sentMessageId = chatSummaryBot.sendMessageReturningId(chatId, textToSend);
 
-            if (sentMessageId != null) {
-                linkPreviousToCurrent(chatId, prevMessageId, prevText, sentMessageId);
-                chatConfigService.updateLastSummary(chatId, sentMessageId, textToSend);
+            if (sentMessageId == null) {
+                log.error("Failed to deliver scheduled summary to chat {}; not consuming credit or clearing messages",
+                        chatId);
+                return false;
             }
+
+            linkPreviousToCurrent(chatId, prevMessageId, prevText, sentMessageId);
+            chatConfigService.updateLastSummary(chatId, sentMessageId, textToSend);
 
             if (chatConfigService.getChatConfig(chatId).isMonthlySummaryEnabled()) {
                 messageService.saveDailySummary(chatId, summary);

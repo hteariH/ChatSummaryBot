@@ -297,7 +297,10 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             sendMessage(chatId, "⏳ Generating summary of %d messages...".formatted(messages.size()));
 
             var summary = geminiSummaryService.summarize(messages, config.getLanguage(), config.getCustomPrompt());
-            sendMessage(chatId, "📋 *Summary*\n\n" + summary);
+            var sentMessageId = sendMessageReturningId(chatId, "📋 *Summary*\n\n" + summary);
+            if (sentMessageId == null) {
+                throw new IllegalStateException("Failed to deliver summary to chat " + chatId);
+            }
             chatConfigService.updateLastProcessedAt(chatId, Instant.now());
             adService.consumeCreditAndMaybeShowAd(chatId);
         } catch (Exception exception) {
