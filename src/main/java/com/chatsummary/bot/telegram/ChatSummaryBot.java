@@ -294,7 +294,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                 // return;
             // }
 
-            sendMessage(chatId, ":( Summary command is discontinued, sorry...  Only daily summaries now".formatted(messages.size()));
+            sendMessage(chatId, ":( Summary command is discontinued, sorry...  Only daily summaries now");
 
             // var summary = geminiSummaryService.summarize(messages, config.getLanguage(), config.getCustomPrompt());
             // var sentMessageId = sendMessageReturningId(chatId, "📋 *Summary*\n\n" + summary);
