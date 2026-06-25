@@ -289,20 +289,20 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                     : config.getLastProcessedAt();
             var messages = messageService.getMessagesSince(chatId, since);
 
-            if (messages.isEmpty()) {
-                sendMessage(chatId, "📭 No new messages since last summary. Nothing to summarize!");
-                return;
-            }
+            // if (messages.isEmpty()) {
+                // sendMessage(chatId, "📭 No new messages since last summary. Nothing to summarize!");
+                // return;
+            // }
 
-            sendMessage(chatId, "⏳ Generating summary of %d messages...".formatted(messages.size()));
+            sendMessage(chatId, ":( Summary command is discontinued, sorry...  Only daily summaries now".formatted(messages.size()));
 
-            var summary = geminiSummaryService.summarize(messages, config.getLanguage(), config.getCustomPrompt());
-            var sentMessageId = sendMessageReturningId(chatId, "📋 *Summary*\n\n" + summary);
-            if (sentMessageId == null) {
-                throw new IllegalStateException("Failed to deliver summary to chat " + chatId);
-            }
-            chatConfigService.updateLastProcessedAt(chatId, Instant.now());
-            adService.consumeCreditAndMaybeShowAd(chatId);
+            // var summary = geminiSummaryService.summarize(messages, config.getLanguage(), config.getCustomPrompt());
+            // var sentMessageId = sendMessageReturningId(chatId, "📋 *Summary*\n\n" + summary);
+            // if (sentMessageId == null) {
+                // throw new IllegalStateException("Failed to deliver summary to chat " + chatId);
+            // }
+            // chatConfigService.updateLastProcessedAt(chatId, Instant.now());
+            // adService.consumeCreditAndMaybeShowAd(chatId);
         } catch (Exception exception) {
             log.error("Error handling /summary command for chat {}", chatId, exception);
             sendMessage(chatId, "⚠️ Sorry, failed to generate summary. Please try again later.");
