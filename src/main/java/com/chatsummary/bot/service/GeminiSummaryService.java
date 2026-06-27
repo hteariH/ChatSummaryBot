@@ -4,6 +4,7 @@ import com.chatsummary.bot.model.ChatMessage;
 import com.chatsummary.bot.model.DailySummary;
 import com.chatsummary.bot.util.TelegramLinks;
 import com.google.genai.Client;
+import com.google.genai.errors.ClientException;
 import com.google.genai.errors.ServerException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentResponse;
@@ -27,7 +28,10 @@ public class GeminiSummaryService {
     private static final String EMPTY_DAILY_SUMMARY = "📭 No messages to summarize today.";
     private static final String EMPTY_MONTHLY_SUMMARY = "📭 No daily summaries found for this month.";
 
+    private static final int HTTP_TOO_MANY_REQUESTS = 429;
+
     private final String model;
+    private final String backupModel;
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
             .withZone(ZoneId.systemDefault());
     private final Client client;
@@ -37,15 +41,35 @@ public class GeminiSummaryService {
     public GeminiSummaryService(
             @Value("${gemini.api-key}") String apiKey,
             @Value("${gemini.model}") String model,
+            @Value("${gemini.backup-model:}") String backupModel,
             VoiceStorageService voiceStorageService,
             AdminNotificationService adminNotificationService
     ) {
         this.model = model;
+        this.backupModel = backupModel;
         this.client = Client.builder()
                 .apiKey(apiKey)
                 .build();
         this.voiceStorageService = voiceStorageService;
         this.adminNotificationService = adminNotificationService;
+    }
+
+    /**
+     * Calls Gemini with the primary model and, when it returns HTTP 429 (rate limited / quota
+     * exhausted), retries the same request once on the configured backup model.
+     */
+    private GenerateContentResponse generateContent(Content content) {
+        try {
+            return client.models.generateContent(model, content, null);
+        } catch (ClientException e) {
+            if (e.code() == HTTP_TOO_MANY_REQUESTS
+                    && backupModel != null && !backupModel.isBlank()
+                    && !backupModel.equals(model)) {
+                log.warn("Gemini model {} returned 429, falling back to backup model {}", model, backupModel);
+                return client.models.generateContent(backupModel, content, null);
+            }
+            throw e;
+        }
     }
 
     @Retryable(
@@ -115,7 +139,7 @@ public class GeminiSummaryService {
                 .parts(parts)
                 .build();
 
-        var response = client.models.generateContent(model, content, null);
+        var response = generateContent(content);
         reportTokenUsage("summary", messages.getFirst().chatId(), response);
         var result = response.text();
         if (result == null) {
@@ -193,7 +217,11 @@ public class GeminiSummaryService {
                 --- End of Data ---
                 """.formatted(language, allSummariesText);
 
-        var response = client.models.generateContent(model, prompt, null);
+        var content = Content.builder()
+                .parts(List.of(Part.fromText(prompt)))
+                .build();
+
+        var response = generateContent(content);
         reportTokenUsage("monthly summary", summaries.getFirst().chatId(), response);
         var result = response.text();
         if (result == null) {
