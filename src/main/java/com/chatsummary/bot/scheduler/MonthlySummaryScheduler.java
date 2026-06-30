@@ -25,7 +25,7 @@ public class MonthlySummaryScheduler {
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
 
-    @Scheduled(cron = "0 0 19 L * *")
+    @Scheduled(cron = "0 0 21 L * *")
     public void sendMonthlySummaries() throws InterruptedException {
         log.info("Starting scheduled monthly summaries...");
 
