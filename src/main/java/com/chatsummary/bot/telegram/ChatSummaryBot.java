@@ -336,8 +336,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void sendMessage(long chatId, String text) {
         try {
-            log.info("Sending message to chat {}: {}", chatId, text);
-            for (var chunk : splitMessage(text)) {
+            String cleanText = cleanHtml(text);
+            log.info("Sending message to chat {}: {}", chatId, cleanText);
+            for (var chunk : splitMessage(cleanText)) {
                 var message = SendMessage.builder()
                         .chatId(Long.toString(chatId))
                         .parseMode("HTML")
@@ -352,9 +353,10 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public Integer sendMessageReturningId(long chatId, String text) {
         try {
-            log.info("Sending message to chat {}: {}", chatId, text);
+            String cleanText = cleanHtml(text);
+            log.info("Sending message to chat {}: {}", chatId, cleanText);
             Integer firstMessageId = null;
-            for (var chunk : splitMessage(text)) {
+            for (var chunk : splitMessage(cleanText)) {
                 var message = SendMessage.builder()
                         .chatId(Long.toString(chatId))
                         .parseMode("HTML")
@@ -374,7 +376,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void editMessageText(long chatId, Integer messageId, String text) {
         try {
-            var chunks = splitMessage(text);
+            String cleanText = cleanHtml(text);
+            var chunks = splitMessage(cleanText);
             var edit = EditMessageText.builder()
                     .chatId(Long.toString(chatId))
                     .messageId(messageId)
@@ -392,8 +395,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void sendMessage(long chatId, Integer messageId, String text) {
         try {
-            log.info("Sending message to chat {}: {}", chatId, text);
-            var chunks = splitMessage(text);
+            String cleanText = cleanHtml(text);
+            log.info("Sending message to chat {}: {}", chatId, cleanText);
+            var chunks = splitMessage(cleanText);
             for (int i = 0; i < chunks.size(); i++) {
                 var messageBuilder = SendMessage.builder()
                         .chatId(Long.toString(chatId))
@@ -407,6 +411,13 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
         }
+    }
+
+    String cleanHtml(String text) {
+        if (text == null) return null;
+        return text.replaceAll("(?i)<br\\s*/?>", "\n")
+                   .replaceAll("(?i)<p\\s*>", "")
+                   .replaceAll("(?i)</p\\s*>", "\n");
     }
 
     static List<String> splitMessage(String text) {
