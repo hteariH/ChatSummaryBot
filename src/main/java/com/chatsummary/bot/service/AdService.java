@@ -23,7 +23,7 @@ import java.util.List;
 @Service
 public class AdService {
 
-    private static final int CREDITS_PER_PURCHASE = 30;
+    private static final int CREDITS_PER_PURCHASE = 300;
 
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
@@ -96,14 +96,14 @@ public class AdService {
                 case EN -> "Remove ads";
             };
             var description = switch (lang) {
-                case RU -> "30 ⭐ = 30 саммари без рекламы для этого чата.";
-                case UK -> "30 ⭐ = 30 саммарі без реклами для цього чату.";
-                case EN -> "30 ⭐ = 30 ad-free summaries for this chat.";
+                case RU -> "300 ⭐ = 30 саммари без рекламы для этого чата.";
+                case UK -> "300 ⭐ = 30 саммарі без реклами для цього чату.";
+                case EN -> "300 ⭐ = 30 ad-free summaries for this chat.";
             };
             var priceLabel = switch (lang) {
-                case RU -> "30 звёзд = 30 саммари";
-                case UK -> "30 зірок = 30 саммарі";
-                case EN -> "30 ⭐ = 30 summaries";
+                case RU -> "300 звёзд = 30 саммари";
+                case UK -> "300 зірок = 30 саммарі";
+                case EN -> "300 ⭐ = 30 summaries";
             };
             var invoice = SendInvoice.builder()
                     .chatId(Long.toString(chatId))
@@ -111,7 +111,7 @@ public class AdService {
                     .description(description)
                     .payload("summary_credits")
                     .currency("XTR")
-                    .prices(List.of(new LabeledPrice(priceLabel, CREDITS_PER_PURCHASE), new LabeledPrice(priceLabel, CREDITS_PER_PURCHASE * 3)))
+                    .price(new LabeledPrice(priceLabel, CREDITS_PER_PURCHASE))
                     .build();
             telegramClient.execute(invoice);
         } catch (Exception exception) {

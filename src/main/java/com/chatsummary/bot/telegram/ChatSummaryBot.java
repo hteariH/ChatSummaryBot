@@ -10,6 +10,7 @@ import com.chatsummary.bot.service.MessageService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -37,6 +38,7 @@ import org.telegram.telegrambots.meta.api.objects.User;
 @Component
 public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
+    static final int TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
     private static final List<String> ADMIN_STATUSES = List.of("administrator", "creator");
     private static final List<String> INACTIVE_STATUSES = List.of("left", "kicked");
     private static final List<String> ACTIVE_STATUSES = List.of("member", "administrator");
@@ -335,12 +337,14 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     public void sendMessage(long chatId, String text) {
         try {
             log.info("Sending message to chat {}: {}", chatId, text);
-            var message = SendMessage.builder()
-                    .chatId(Long.toString(chatId))
-                    .parseMode("HTML")
-                    .text(text)
-                    .build();
-            telegramClient.execute(message);
+            for (var chunk : splitMessage(text)) {
+                var message = SendMessage.builder()
+                        .chatId(Long.toString(chatId))
+                        .parseMode("HTML")
+                        .text(chunk)
+                        .build();
+                telegramClient.execute(message);
+            }
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
         }
@@ -349,13 +353,19 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     public Integer sendMessageReturningId(long chatId, String text) {
         try {
             log.info("Sending message to chat {}: {}", chatId, text);
-            var message = SendMessage.builder()
-                    .chatId(Long.toString(chatId))
-                    .parseMode("HTML")
-                    .text(text)
-                    .build();
-            var sent = telegramClient.execute(message);
-            return sent.getMessageId();
+            Integer firstMessageId = null;
+            for (var chunk : splitMessage(text)) {
+                var message = SendMessage.builder()
+                        .chatId(Long.toString(chatId))
+                        .parseMode("HTML")
+                        .text(chunk)
+                        .build();
+                var sent = telegramClient.execute(message);
+                if (firstMessageId == null) {
+                    firstMessageId = sent.getMessageId();
+                }
+            }
+            return firstMessageId;
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
             return null;
@@ -364,13 +374,17 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
     public void editMessageText(long chatId, Integer messageId, String text) {
         try {
+            var chunks = splitMessage(text);
             var edit = EditMessageText.builder()
                     .chatId(Long.toString(chatId))
                     .messageId(messageId)
                     .parseMode("HTML")
-                    .text(text)
+                    .text(chunks.get(0))
                     .build();
             telegramClient.execute(edit);
+            for (int i = 1; i < chunks.size(); i++) {
+                sendMessage(chatId, chunks.get(i));
+            }
         } catch (Exception exception) {
             log.warn("Failed to edit message {} in chat {}", messageId, chatId, exception);
         }
@@ -379,16 +393,49 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     public void sendMessage(long chatId, Integer messageId, String text) {
         try {
             log.info("Sending message to chat {}: {}", chatId, text);
-            var message = SendMessage.builder()
-                    .chatId(Long.toString(chatId))
-                    .replyToMessageId(messageId)
-                    .parseMode("HTML")
-                    .text(text)
-                    .build();
-            telegramClient.execute(message);
+            var chunks = splitMessage(text);
+            for (int i = 0; i < chunks.size(); i++) {
+                var messageBuilder = SendMessage.builder()
+                        .chatId(Long.toString(chatId))
+                        .parseMode("HTML")
+                        .text(chunks.get(i));
+                if (i == 0) {
+                    messageBuilder.replyToMessageId(messageId);
+                }
+                telegramClient.execute(messageBuilder.build());
+            }
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
         }
+    }
+
+    static List<String> splitMessage(String text) {
+        if (text == null || text.isEmpty()) {
+            return List.of("");
+        }
+
+        var chunks = new ArrayList<String>();
+        int start = 0;
+        while (start < text.length()) {
+            int end = Math.min(start + TELEGRAM_MAX_MESSAGE_LENGTH, text.length());
+            if (end < text.length()) {
+                int splitAt = text.lastIndexOf('\n', end - 1);
+                if (splitAt >= start) {
+                    end = splitAt + 1;
+                }
+            }
+
+            var chunk = text.substring(start, end);
+            if (!chunk.isBlank()) {
+                chunks.add(chunk);
+            }
+            start = end;
+        }
+
+        if (chunks.isEmpty()) {
+            chunks.add(text.substring(0, Math.min(text.length(), TELEGRAM_MAX_MESSAGE_LENGTH)));
+        }
+        return chunks;
     }
 
     private static String commandOf(String text) {
