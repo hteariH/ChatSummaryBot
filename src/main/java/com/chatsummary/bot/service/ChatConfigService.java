@@ -81,9 +81,15 @@ public class ChatConfigService {
     }
 
     public void updateLastSummary(long chatId, Integer messageId, String text) {
+        updateLastSummary(chatId, messageId, messageId, text);
+    }
+
+    public void updateLastSummary(long chatId, Integer firstMessageId, Integer tailMessageId, String tailText) {
         var config = getChatConfig(chatId);
-        config.setLastSummaryMessageId(messageId);
-        config.setLastSummaryText(text);
+        config.setLastSummaryMessageId(firstMessageId);
+        config.setLastSummaryText(tailText);
+        config.setLastSummaryTailMessageId(tailMessageId);
+        config.setLastSummaryTailText(tailText);
         chatConfigRepository.save(config);
     }
 

@@ -86,20 +86,25 @@ public class DailySummaryScheduler {
 
             var config = chatConfigService.getChatConfig(chatId);
             var prevMessageId = config.getLastSummaryMessageId();
-            var prevText = config.getLastSummaryText();
+            var prevTailMessageId = firstNonNull(config.getLastSummaryTailMessageId(), prevMessageId);
+            var prevTailText = firstNonNull(config.getLastSummaryTailText(), config.getLastSummaryText());
 
             var body = "📋 *Summary*\n\n" + summary;
             var textToSend = withPreviousLink(chatId, body, prevMessageId);
-            var sentMessageId = chatSummaryBot.sendMessageReturningId(chatId, textToSend);
+            var sentSummary = chatSummaryBot.sendSummaryMessage(chatId, textToSend);
 
-            if (sentMessageId == null) {
+            if (sentSummary == null || sentSummary.firstMessageId() == null || sentSummary.lastMessageId() == null) {
                 log.error("Failed to deliver scheduled summary to chat {}; not consuming credit or clearing messages",
                         chatId);
                 return false;
             }
 
-            linkPreviousToCurrent(chatId, prevMessageId, prevText, sentMessageId);
-            chatConfigService.updateLastSummary(chatId, sentMessageId, textToSend);
+            linkPreviousToCurrent(chatId, prevTailMessageId, prevTailText, sentSummary.firstMessageId());
+            chatConfigService.updateLastSummary(
+                    chatId,
+                    sentSummary.firstMessageId(),
+                    sentSummary.lastMessageId(),
+                    sentSummary.lastChunk());
 
             if (chatConfigService.getChatConfig(chatId).isMonthlySummaryEnabled()) {
                 messageService.saveDailySummary(chatId, summary);
@@ -133,8 +138,19 @@ public class DailySummaryScheduler {
             return;
         }
 
-        TelegramLinks.messageUrl(chatId, currentMessageId).ifPresent(url ->
-                chatSummaryBot.editMessageText(chatId, prevMessageId,
-                        prevText + "\n<a href=\"%s\">⬇️</a>".formatted(url)));
+        TelegramLinks.messageUrl(chatId, currentMessageId).ifPresent(url -> {
+            var updatedText = prevText + "\n<a href=\"%s\">⬇️</a>".formatted(url);
+            if (ChatSummaryBot.splitMessage(updatedText).size() > 1) {
+                log.warn("Skipping previous summary navigation update for chat {} because stored tail text is too long",
+                        chatId);
+                return;
+            }
+
+            chatSummaryBot.editMessageText(chatId, prevMessageId, updatedText);
+        });
+    }
+
+    private static <T> T firstNonNull(T first, T second) {
+        return first != null ? first : second;
     }
 }

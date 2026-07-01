@@ -39,6 +39,7 @@ import org.telegram.telegrambots.meta.api.objects.User;
 public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
     static final int TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+    public static final int SUMMARY_NAVIGATION_LINK_RESERVE = 256;
     private static final List<String> ADMIN_STATUSES = List.of("administrator", "creator");
     private static final List<String> INACTIVE_STATUSES = List.of("left", "kicked");
     private static final List<String> ACTIVE_STATUSES = List.of("member", "administrator");
@@ -352,11 +353,25 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     }
 
     public Integer sendMessageReturningId(long chatId, String text) {
+        var sent = sendMessageReturningResult(chatId, text, TELEGRAM_MAX_MESSAGE_LENGTH);
+        return sent == null ? null : sent.firstMessageId();
+    }
+
+    public SentMessageResult sendSummaryMessage(long chatId, String text) {
+        return sendMessageReturningResult(
+                chatId,
+                text,
+                TELEGRAM_MAX_MESSAGE_LENGTH - SUMMARY_NAVIGATION_LINK_RESERVE);
+    }
+
+    private SentMessageResult sendMessageReturningResult(long chatId, String text, int maxChunkLength) {
         try {
             String cleanText = cleanHtml(text);
             log.info("Sending message to chat {}: {}", chatId, cleanText);
             Integer firstMessageId = null;
-            for (var chunk : splitMessage(cleanText)) {
+            Integer lastMessageId = null;
+            String lastChunk = null;
+            for (var chunk : splitMessage(cleanText, maxChunkLength)) {
                 var message = SendMessage.builder()
                         .chatId(Long.toString(chatId))
                         .parseMode("HTML")
@@ -366,8 +381,10 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                 if (firstMessageId == null) {
                     firstMessageId = sent.getMessageId();
                 }
+                lastMessageId = sent.getMessageId();
+                lastChunk = chunk;
             }
-            return firstMessageId;
+            return new SentMessageResult(firstMessageId, lastMessageId, lastChunk);
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
             return null;
@@ -420,7 +437,16 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                    .replaceAll("(?i)</p\\s*>", "\n");
     }
 
-    static List<String> splitMessage(String text) {
+    public static List<String> splitMessage(String text) {
+        return splitMessage(text, TELEGRAM_MAX_MESSAGE_LENGTH);
+    }
+
+    public static List<String> splitMessage(String text, int maxChunkLength) {
+        if (maxChunkLength <= 0 || maxChunkLength > TELEGRAM_MAX_MESSAGE_LENGTH) {
+            throw new IllegalArgumentException("maxChunkLength must be between 1 and "
+                    + TELEGRAM_MAX_MESSAGE_LENGTH);
+        }
+
         if (text == null || text.isEmpty()) {
             return List.of("");
         }
@@ -428,7 +454,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         var chunks = new ArrayList<String>();
         int start = 0;
         while (start < text.length()) {
-            int end = Math.min(start + TELEGRAM_MAX_MESSAGE_LENGTH, text.length());
+            int end = Math.min(start + maxChunkLength, text.length());
             if (end < text.length()) {
                 int splitAt = text.lastIndexOf('\n', end - 1);
                 if (splitAt >= start) {
@@ -444,9 +470,12 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         }
 
         if (chunks.isEmpty()) {
-            chunks.add(text.substring(0, Math.min(text.length(), TELEGRAM_MAX_MESSAGE_LENGTH)));
+            chunks.add(text.substring(0, Math.min(text.length(), maxChunkLength)));
         }
         return chunks;
+    }
+
+    public record SentMessageResult(Integer firstMessageId, Integer lastMessageId, String lastChunk) {
     }
 
     private static String commandOf(String text) {

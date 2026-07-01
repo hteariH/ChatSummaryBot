@@ -30,6 +30,8 @@ public final class ChatConfig {
     private Instant lastMonthlyProcessedAt;
     private Integer lastSummaryMessageId;
     private String lastSummaryText;
+    private Integer lastSummaryTailMessageId;
+    private String lastSummaryTailText;
 
     public ChatConfig(long chatId, String cron) {
         this.chatId = chatId;
