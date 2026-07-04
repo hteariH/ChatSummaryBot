@@ -38,6 +38,12 @@ public class VoiceStorageService {
         return save(chatId, messageId, data, "video/mp4", "mp4");
     }
 
+    public ChatAttachment saveVideoNoteAudio(long chatId, int messageId, byte[] data) {
+        // Audio-only track extracted from a video note, to avoid sending video frames to Gemini.
+        return save(chatId, messageId, data,
+                AudioExtractionService.AUDIO_CONTENT_TYPE, AudioExtractionService.AUDIO_EXTENSION);
+    }
+
     private ChatAttachment save(long chatId, int messageId, byte[] data, String contentType, String extension) {
         if (getGlobalSize() + data.length > globalLimit) {
             log.warn("Global storage limit reached. Cannot save attachment.");

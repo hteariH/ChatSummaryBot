@@ -25,6 +25,7 @@ class MessageServiceTest {
     private DailySummaryRepository dailySummaryRepository;
     private TelegramDownloadService telegramDownloadService;
     private VoiceStorageService voiceStorageService;
+    private AudioExtractionService audioExtractionService;
     private MessageService service;
 
     @BeforeEach
@@ -33,8 +34,10 @@ class MessageServiceTest {
         dailySummaryRepository = Mockito.mock(DailySummaryRepository.class);
         telegramDownloadService = Mockito.mock(TelegramDownloadService.class);
         voiceStorageService = Mockito.mock(VoiceStorageService.class);
+        audioExtractionService = Mockito.mock(AudioExtractionService.class);
         service = new MessageService(
-                chatMessageRepository, dailySummaryRepository, telegramDownloadService, voiceStorageService);
+                chatMessageRepository, dailySummaryRepository, telegramDownloadService,
+                voiceStorageService, audioExtractionService);
     }
 
     @Test

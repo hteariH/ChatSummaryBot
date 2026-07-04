@@ -24,6 +24,14 @@ summary:
   cron: ${SUMMARY_CRON:0 0 21 * * *}
   admin-chat-id: ${ADMIN_CHAT_ID}
 
+# Photo processing (downscale before storing / sending to Gemini to bound input tokens)
+image:
+  max-dimension: ${IMAGE_MAX_DIMENSION:1024}
+
+# ffmpeg is used to strip the video track from video notes, keeping only audio for Gemini
+ffmpeg:
+  path: ${FFMPEG_PATH:ffmpeg}
+
 # Storage for attachments (voices)
 storage:
   path: ${STORAGE_PATH:/app/storage}

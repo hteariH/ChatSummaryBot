@@ -23,6 +23,7 @@ public class MessageService {
     private final DailySummaryRepository dailySummaryRepository;
     private final TelegramDownloadService telegramDownloadService;
     private final VoiceStorageService voiceStorageService;
+    private final AudioExtractionService audioExtractionService;
 
     public void saveMessage(long chatId, Integer telegramMessageId, String senderName, String text) {
         chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, text));
@@ -100,7 +101,11 @@ public class MessageService {
         log.info("Saving video note {} from '{}' in chat {}", telegramMessageId, senderName, chatId);
 
         var data = telegramDownloadService.downloadBytes(fileId);
-        var attachment = voiceStorageService.saveVideoNote(chatId, telegramMessageId, data);
+        // Prefer the audio-only track to avoid sending (token-heavy) video frames to Gemini;
+        // fall back to the full MP4 if ffmpeg extraction is unavailable.
+        var attachment = audioExtractionService.extractAudio(data)
+                .map(audio -> voiceStorageService.saveVideoNoteAudio(chatId, telegramMessageId, audio))
+                .orElseGet(() -> voiceStorageService.saveVideoNote(chatId, telegramMessageId, data));
 
         if (attachment != null) {
             chatMessageRepository.save(new ChatMessage(chatId, telegramMessageId, senderName, "[video note]", List.of(attachment)));

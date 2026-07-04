@@ -1,6 +1,7 @@
 package com.chatsummary.bot.service;
 
 import com.chatsummary.bot.model.ChatAttachment;
+import com.chatsummary.bot.util.ImageDownscaler;
 import java.io.IOException;
 import org.bson.types.Binary;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,9 +14,14 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 public class TelegramDownloadService {
 
     private final OkHttpTelegramClient telegramClient;
+    private final int imageMaxDimension;
 
-    public TelegramDownloadService(@Value("${telegram.bot.token}") String botToken) {
+    public TelegramDownloadService(
+            @Value("${telegram.bot.token}") String botToken,
+            @Value("${image.max-dimension:1024}") int imageMaxDimension
+    ) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
+        this.imageMaxDimension = imageMaxDimension;
     }
 
     public ChatAttachment downloadPhoto(String fileId) {
@@ -50,7 +56,8 @@ public class TelegramDownloadService {
                 var resolvedType = contentType != null
                         ? contentType
                         : (filePath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg");
-                return new ChatAttachment(resolvedType, new Binary(fileBytes));
+                var downscaled = ImageDownscaler.downscale(fileBytes, resolvedType, imageMaxDimension);
+                return new ChatAttachment(resolvedType, new Binary(downscaled));
             }
         } catch (TelegramApiException | IOException exception) {
             throw new IllegalStateException("Failed to download Telegram file", exception);
