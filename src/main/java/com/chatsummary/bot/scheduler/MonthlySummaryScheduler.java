@@ -19,6 +19,9 @@ public class MonthlySummaryScheduler {
 
     private static final long GEMINI_THROTTLE_MILLIS = 2_000L * 60L;
 
+    // Overridable in tests to avoid real sleeps.
+    long geminiThrottleMillis = GEMINI_THROTTLE_MILLIS;
+
     private final MessageService messageService;
     private final GeminiSummaryService geminiSummaryService;
     private final ChatSummaryBot chatSummaryBot;
@@ -47,31 +50,38 @@ public class MonthlySummaryScheduler {
                 continue;
             }
 
-            processMonthlySummary(chatId, config.getLanguage());
-            chatConfigService.updateLastMonthlyProcessedAt(chatId, now.toInstant());
-            Thread.sleep(GEMINI_THROTTLE_MILLIS);
+            if (processMonthlySummary(chatId, config.getLanguage())) {
+                chatConfigService.updateLastMonthlyProcessedAt(chatId, now.toInstant());
+            }
+            Thread.sleep(geminiThrottleMillis);
         }
     }
 
-    private void processMonthlySummary(long chatId, String language) {
+    private boolean processMonthlySummary(long chatId, String language) {
         try {
             var dailySummaries = messageService.getDailySummaries(chatId);
             if (dailySummaries.isEmpty()) {
                 log.info("No daily summaries for chat {} this month, skipping monthly summary.", chatId);
-                return;
+                return true;
             }
 
             log.info("Generating monthly summary for chat {} ({} daily summaries)...", chatId, dailySummaries.size());
             var monthlySummary = geminiSummaryService.summarizeMonthly(dailySummaries, language);
 
-            chatSummaryBot.sendMessage(chatId, "📅 *Monthly Digest*\n\n" + monthlySummary);
+            var sentMessageId = chatSummaryBot.sendMessageReturningId(chatId, "📅 *Monthly Digest*\n\n" + monthlySummary);
+            if (sentMessageId == null) {
+                log.error("Failed to deliver monthly summary to chat {}; keeping daily summaries for retry", chatId);
+                return false;
+            }
             messageService.clearOldDailySummaries(chatId);
 
             log.info("Sent monthly summary to chat {}", chatId);
+            return true;
         } catch (Exception exception) {
             log.error("Failed to send monthly summary for chat {}", chatId, exception);
             var chatTitle = chatSummaryBot.getChatTitle(chatId);
             adminNotificationService.notifyOnFailure(chatId, chatTitle, "Monthly Summary", exception, true);
+            return false;
         }
     }
 }

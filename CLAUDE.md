@@ -23,7 +23,7 @@ There is no separate lint step; the build is the gate. Lombok is an annotation p
 
 ## Required configuration
 
-The app will not start without these env vars (see `.env.example`): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `GEMINI_API_KEY`, `ADMIN_CHAT_ID`. `SPRING_MONGODB_URI` defaults to `mongodb://localhost:27017/chatsummarybot`. Note `application.yml` defaults `GEMINI_MODEL` to `gemini-3-flash-preview` (the README's `gemini-2.5-flash` is stale). Gemini retry tuning: `GEMINI_RETRY_MAX_ATTEMPTS`, `GEMINI_RETRY_DELAY`.
+The app will not start without these env vars (see `.env.example`): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `GEMINI_API_KEY`, `ADMIN_CHAT_ID`. `SPRING_MONGODB_URI` defaults to `mongodb://localhost:27017/chatsummarybot`. Note `application.yml` defaults `GEMINI_MODEL` to `gemini-3-flash-preview` (the README's `gemini-2.5-flash` is stale). Gemini retry tuning: `GEMINI_RETRY_MAX_ATTEMPTS`, `GEMINI_RETRY_DELAY`, `GEMINI_RETRY_MULTIPLIER`, `GEMINI_RETRY_MAX_DELAY` (exponential backoff; defaults 5 attempts, 10s initial, x2, 60s cap). Retries fire only on Gemini 5xx (`ServerException`) and empty responses (`GeminiEmptyResponseException`) — 4xx (`ClientException`) is not retried; a 429 on the primary model falls back to `GEMINI_BACKUP_MODEL` once per attempt instead.
 
 ## Architecture
 
@@ -51,7 +51,7 @@ JUnit 5 + Mockito + AssertJ (via `spring-boot-starter-test`), Testcontainers for
 
 - **`ChatConfigService.getChatConfig` returns an *unsaved* default** when no config row exists. The config is only persisted by the explicit `set*`/`update*`/`save*` methods. Don't assume reading a config created a DB row.
 - **Circular dependency** between `AdminNotificationService` and `ChatSummaryBot` is broken with `@Lazy` on the bot injection — preserve it.
-- **`lastProcessedAt` is the watermark for both `/summary` and the scheduler** (not calendar day). Updating it wrong will double-send or skip summaries. Scheduled runs also `clearOldMessages` after sending.
+- **`lastProcessedAt` is the watermark for both `/summary` and the scheduler** (not calendar day). Updating it wrong will double-send or skip summaries. Scheduled runs also `clearOldMessages` after sending. The watermark advances as soon as the summary is *delivered* — post-send failures (credit consumption, nav-link edit, cleanup) are notified but do not trigger a re-send. Monthly is the mirror image: `lastMonthlyProcessedAt` advances only on success, and daily summaries are cleared only after confirmed delivery.
 - **Schedulers sleep `2000*60` ms between chats** (`GEMINI_THROTTLE_MILLIS`) to throttle Gemini — long runs are expected, not hangs.
 - **Cron is Spring 6-field** (`sec min hour day month dow`); validated with `CronExpression` before saving.
 - **Outgoing messages use `parseMode("HTML")`** and the Gemini prompt is instructed to emit only Telegram-safe HTML (`<b><i><u><s><a>`), no markdown. Keep new bot text HTML-safe.

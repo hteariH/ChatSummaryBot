@@ -16,8 +16,10 @@ gemini:
   model: ${GEMINI_MODEL:gemini-3.5-flash}
   backup-model: ${GEMINI_BACKUP_MODEL:gemini-2.5-flash}
   retry:
-    max-attempts: ${GEMINI_RETRY_MAX_ATTEMPTS:3}
-    delay: ${GEMINI_RETRY_DELAY:1000}
+    max-attempts: ${GEMINI_RETRY_MAX_ATTEMPTS:5}
+    delay: ${GEMINI_RETRY_DELAY:10000}
+    multiplier: ${GEMINI_RETRY_MULTIPLIER:2}
+    max-delay: ${GEMINI_RETRY_MAX_DELAY:60000}
 
 # Summary scheduler (default: daily at 21:00)
 summary:

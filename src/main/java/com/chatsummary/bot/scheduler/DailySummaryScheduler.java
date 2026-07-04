@@ -24,6 +24,9 @@ public class DailySummaryScheduler {
 
     private static final long GEMINI_THROTTLE_MILLIS = 2_000L * 60L;
 
+    // Overridable in tests to avoid real sleeps.
+    long geminiThrottleMillis = GEMINI_THROTTLE_MILLIS;
+
     private final MessageService messageService;
     private final GeminiSummaryService geminiSummaryService;
     private final ChatSummaryBot chatSummaryBot;
@@ -43,62 +46,96 @@ public class DailySummaryScheduler {
         }
 
         for (var chatId : activeChatIds) {
-            var config = chatConfigService.getChatConfig(chatId);
-            var cron = CronExpression.parse(config.getCron());
-            var lastProcessedInstant = config.getLastProcessedAt() == null
-                    ? LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
-                    : config.getLastProcessedAt();
-            var lastProcessed = lastProcessedInstant.atZone(ZoneId.systemDefault());
-
-            log.debug(
-                    "Checking chat {} for scheduled summary (last processed: {}, cron: {})",
-                    chatId,
-                    lastProcessed,
-                    config.getCron()
-            );
-
-            var nextExecution = cron.next(lastProcessed);
-            if (nextExecution != null && !nextExecution.isAfter(now)) {
-                var processed = processSummary(
-                        chatId,
-                        lastProcessedInstant,
-                        config.getLanguage(),
-                        config.getCustomPrompt()
-                );
-                if (processed) {
-                    chatConfigService.updateLastProcessedAt(chatId, now.toInstant());
-                }
-                Thread.sleep(GEMINI_THROTTLE_MILLIS);
+            boolean summaryAttempted;
+            try {
+                summaryAttempted = checkAndProcessChat(chatId, now);
+            } catch (Exception exception) {
+                // A broken config/cron for one chat must not abort the whole run.
+                log.error("Failed to evaluate schedule for chat {}", chatId, exception);
+                adminNotificationService.notifyOnFailure(
+                        chatId, chatSummaryBot.getChatTitle(chatId), "Scheduled Summary", exception, true);
+                continue;
+            }
+            if (summaryAttempted) {
+                Thread.sleep(geminiThrottleMillis);
             }
         }
     }
 
+    private boolean checkAndProcessChat(long chatId, ZonedDateTime now) {
+        var config = chatConfigService.getChatConfig(chatId);
+        var cron = CronExpression.parse(config.getCron());
+        var lastProcessedInstant = config.getLastProcessedAt() == null
+                ? LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
+                : config.getLastProcessedAt();
+        var lastProcessed = lastProcessedInstant.atZone(ZoneId.systemDefault());
+
+        log.debug(
+                "Checking chat {} for scheduled summary (last processed: {}, cron: {})",
+                chatId,
+                lastProcessed,
+                config.getCron()
+        );
+
+        var nextExecution = cron.next(lastProcessed);
+        if (nextExecution == null || nextExecution.isAfter(now)) {
+            return false;
+        }
+
+        var processed = processSummary(
+                chatId,
+                lastProcessedInstant,
+                config.getLanguage(),
+                config.getCustomPrompt()
+        );
+        if (processed) {
+            chatConfigService.updateLastProcessedAt(chatId, now.toInstant());
+        }
+        return true;
+    }
+
     private boolean processSummary(long chatId, Instant since, String language, String customPrompt) {
+        int messageCount;
+        String summary;
+        Integer prevMessageId;
+        Integer prevTailMessageId;
+        String prevTailText;
+        ChatSummaryBot.SentMessageResult sentSummary;
         try {
             var messages = messageService.getMessagesSince(chatId, since);
             if (messages.isEmpty()) {
                 log.info("No new messages for chat {} since {}, skipping scheduled summary.", chatId, since);
                 return true;
             }
+            messageCount = messages.size();
 
             log.info("Sending scheduled summary for chat {} since {}...", chatId, since);
-            var summary = geminiSummaryService.summarize(messages, language, customPrompt);
+            summary = geminiSummaryService.summarize(messages, language, customPrompt);
 
             var config = chatConfigService.getChatConfig(chatId);
-            var prevMessageId = config.getLastSummaryMessageId();
-            var prevTailMessageId = firstNonNull(config.getLastSummaryTailMessageId(), prevMessageId);
-            var prevTailText = firstNonNull(config.getLastSummaryTailText(), config.getLastSummaryText());
+            prevMessageId = config.getLastSummaryMessageId();
+            prevTailMessageId = firstNonNull(config.getLastSummaryTailMessageId(), prevMessageId);
+            prevTailText = firstNonNull(config.getLastSummaryTailText(), config.getLastSummaryText());
 
             var body = "📋 *Summary*\n\n" + summary;
             var textToSend = withPreviousLink(chatId, body, prevMessageId);
-            var sentSummary = chatSummaryBot.sendSummaryMessage(chatId, textToSend);
+            sentSummary = chatSummaryBot.sendSummaryMessage(chatId, textToSend);
+        } catch (Exception exception) {
+            log.error("Failed to send scheduled summary for chat {}", chatId, exception);
+            var chatTitle = chatSummaryBot.getChatTitle(chatId);
+            adminNotificationService.notifyOnFailure(chatId, chatTitle, "Scheduled Summary", exception, true);
+            return false;
+        }
 
-            if (sentSummary == null || sentSummary.firstMessageId() == null || sentSummary.lastMessageId() == null) {
-                log.error("Failed to deliver scheduled summary to chat {}; not consuming credit or clearing messages",
-                        chatId);
-                return false;
-            }
+        if (sentSummary == null || sentSummary.firstMessageId() == null || sentSummary.lastMessageId() == null) {
+            log.error("Failed to deliver scheduled summary to chat {}; not consuming credit or clearing messages",
+                    chatId);
+            return false;
+        }
 
+        // The summary is already delivered: a failure below must not roll back the watermark,
+        // otherwise the next tick would regenerate and re-send a duplicate.
+        try {
             linkPreviousToCurrent(chatId, prevTailMessageId, prevTailText, sentSummary.firstMessageId());
             chatConfigService.updateLastSummary(
                     chatId,
@@ -113,14 +150,14 @@ public class DailySummaryScheduler {
             adService.consumeCreditAndMaybeShowAd(chatId);
 
             messageService.clearOldMessages(chatId, Instant.now());
-            log.info("Sent scheduled summary to chat {} ({} messages)", chatId, messages.size());
-            return true;
+            log.info("Sent scheduled summary to chat {} ({} messages)", chatId, messageCount);
         } catch (Exception exception) {
-            log.error("Failed to send scheduled summary for chat {}", chatId, exception);
+            log.error("Post-processing failed for delivered summary in chat {}", chatId, exception);
             var chatTitle = chatSummaryBot.getChatTitle(chatId);
-            adminNotificationService.notifyOnFailure(chatId, chatTitle, "Scheduled Summary", exception, true);
-            return false;
+            adminNotificationService.notifyOnFailure(chatId, chatTitle, "Scheduled Summary Post-Processing",
+                    exception, true);
         }
+        return true;
     }
 
     private String withPreviousLink(long chatId, String body, Integer prevMessageId) {

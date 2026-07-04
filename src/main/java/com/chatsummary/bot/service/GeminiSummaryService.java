@@ -73,9 +73,13 @@ public class GeminiSummaryService {
     }
 
     @Retryable(
-            retryFor = {ServerException.class, RuntimeException.class},
-            maxAttemptsExpression = "${gemini.retry.max-attempts:20}",
-            backoff = @Backoff(delayExpression = "${gemini.retry.delay:10000}")
+            retryFor = {ServerException.class, GeminiEmptyResponseException.class},
+            maxAttemptsExpression = "${gemini.retry.max-attempts:5}",
+            backoff = @Backoff(
+                    delayExpression = "${gemini.retry.delay:10000}",
+                    multiplierExpression = "${gemini.retry.multiplier:2}",
+                    maxDelayExpression = "${gemini.retry.max-delay:60000}"
+            )
     )
     public String summarize(List<ChatMessage> messages, String language, String customPrompt) {
         if (messages.isEmpty()) {
@@ -144,7 +148,7 @@ public class GeminiSummaryService {
         var result = response.text();
         if (result == null) {
             log.warn("Gemini returned empty response for chat summary");
-            throw new RuntimeException("Gemini returned empty response");
+            throw new GeminiEmptyResponseException("Gemini returned empty response");
         }
 
         return result;
@@ -179,9 +183,13 @@ public class GeminiSummaryService {
     }
 
     @Retryable(
-            retryFor = {ServerException.class, RuntimeException.class},
-            maxAttemptsExpression = "${gemini.retry.max-attempts:20}",
-            backoff = @Backoff(delayExpression = "${gemini.retry.delay:10000}")
+            retryFor = {ServerException.class, GeminiEmptyResponseException.class},
+            maxAttemptsExpression = "${gemini.retry.max-attempts:5}",
+            backoff = @Backoff(
+                    delayExpression = "${gemini.retry.delay:10000}",
+                    multiplierExpression = "${gemini.retry.multiplier:2}",
+                    maxDelayExpression = "${gemini.retry.max-delay:60000}"
+            )
     )
     public String summarizeMonthly(List<DailySummary> summaries, String language) {
         if (summaries.isEmpty()) {
@@ -225,7 +233,7 @@ public class GeminiSummaryService {
         reportTokenUsage("monthly summary", summaries.getFirst().chatId(), response);
         var result = response.text();
         if (result == null) {
-            throw new RuntimeException("Gemini returned empty response for monthly summary");
+            throw new GeminiEmptyResponseException("Gemini returned empty response for monthly summary");
         }
 
         return result;
