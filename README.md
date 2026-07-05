@@ -26,7 +26,7 @@ The bot can be configured via environment variables or a `.env` file:
 | `TELEGRAM_BOT_TOKEN` | Your Telegram Bot Token | (Required) |
 | `TELEGRAM_BOT_USERNAME` | Your Telegram Bot Username | (Required) |
 | `GEMINI_API_KEY` | Your Google Gemini API Key | (Required) |
-| `GEMINI_MODELS` | Comma-separated models tried in order; falls through to the next on HTTP 429 | `gemini-3.5-flash,gemini-3-flash,gemini-2.5-flash` |
+| `GEMINI_MODELS` | Comma-separated models tried in order; falls through to the next on HTTP 429 or 404 | `gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash` |
 | `SUMMARY_CRON` | Cron expression for daily summary | `0 0 21 * * *` |
 | `ADMIN_CHAT_ID` | Telegram Chat ID for error alerts | (Required) |
 | `LOKI_URL` | URL of the Grafana Loki push endpoint | (Optional) |

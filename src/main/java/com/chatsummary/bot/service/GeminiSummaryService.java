@@ -32,6 +32,7 @@ public class GeminiSummaryService {
     private static final String EMPTY_MONTHLY_SUMMARY = "📭 No daily summaries found for this month.";
 
     private static final int HTTP_TOO_MANY_REQUESTS = 429;
+    private static final int HTTP_NOT_FOUND = 404;
 
     /**
      * Models tried in order. On a 429 (quota / rate limit exhausted) the request falls through to
@@ -96,32 +97,34 @@ public class GeminiSummaryService {
     }
 
     /**
-     * Calls Gemini, walking the configured model list in order. On HTTP 429 (rate limited / quota
-     * exhausted) it falls through to the next model; any other {@link ClientException} (4xx) is
-     * rethrown immediately. If every model is rate limited, the last 429 is rethrown (it is not
-     * retryable, so the caller does not keep hammering an exhausted quota).
+     * Calls Gemini, walking the configured model list in order. It falls through to the next model
+     * on HTTP 429 (rate limited / quota exhausted) or 404 (model unavailable / bad id) — both mean
+     * "this model won't serve the request, try another". Any other {@link ClientException} (e.g.
+     * 400/403) is rethrown immediately. If every model is skipped, the last such exception is
+     * rethrown (it is not retryable, so the caller does not keep hammering an exhausted quota).
      */
     private GenerateContentResponse generateContent(Content content) {
         var config = buildConfig();
-        ClientException lastRateLimit = null;
+        ClientException lastSkippable = null;
         for (int i = 0; i < models.size(); i++) {
             var current = models.get(i);
             try {
                 return client.models.generateContent(current, content, config);
             } catch (ClientException e) {
-                if (e.code() != HTTP_TOO_MANY_REQUESTS) {
+                if (e.code() != HTTP_TOO_MANY_REQUESTS && e.code() != HTTP_NOT_FOUND) {
                     throw e;
                 }
-                lastRateLimit = e;
+                lastSkippable = e;
+                var reason = e.code() == HTTP_NOT_FOUND ? "404 (model unavailable)" : "429 (quota/rate limit)";
                 if (i < models.size() - 1) {
-                    log.warn("Gemini model {} returned 429 (quota/rate limit), falling back to next model {}",
-                            current, models.get(i + 1));
+                    log.warn("Gemini model {} returned {}, falling back to next model {}",
+                            current, reason, models.get(i + 1));
                 } else {
-                    log.warn("Gemini model {} returned 429 and no fallback models remain", current);
+                    log.warn("Gemini model {} returned {} and no fallback models remain", current, reason);
                 }
             }
         }
-        throw lastRateLimit;
+        throw lastSkippable;
     }
 
     /**
