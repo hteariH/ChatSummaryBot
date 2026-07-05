@@ -13,8 +13,13 @@ telegram:
 # Gemini API
 gemini:
   api-key: ${GEMINI_API_KEY}
-  model: ${GEMINI_MODEL:gemini-3.5-flash}
-  backup-model: ${GEMINI_BACKUP_MODEL:gemini-2.5-flash}
+  # Models tried in order; on 429 (quota/rate limit) the request falls through to the next one.
+  models: ${GEMINI_MODELS:gemini-3.5-flash,gemini-3-flash,gemini-2.5-flash}
+  # Optional output tuning; -1 means "unset" (keep model defaults). Set thinking-budget (>= 0) to
+  # cap internal "thinking" tokens so the model leaves room for a visible answer (prevents
+  # MAX_TOKENS empty responses on large multimodal transcripts); 0 disables thinking entirely.
+  max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:-1}
+  thinking-budget: ${GEMINI_THINKING_BUDGET:-1}
   retry:
     max-attempts: ${GEMINI_RETRY_MAX_ATTEMPTS:5}
     delay: ${GEMINI_RETRY_DELAY:10000}
