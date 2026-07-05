@@ -100,8 +100,10 @@ public class GeminiSummaryService {
      * Calls Gemini, walking the configured model list in order. It falls through to the next model
      * on HTTP 429 (rate limited / quota exhausted) or 404 (model unavailable / bad id) — both mean
      * "this model won't serve the request, try another". Any other {@link ClientException} (e.g.
-     * 400/403) is rethrown immediately. If every model is skipped, the last such exception is
-     * rethrown (it is not retryable, so the caller does not keep hammering an exhausted quota).
+     * 400/403) is rethrown immediately. A 5xx {@link ServerException} is logged and rethrown (not a
+     * fallback trigger — it bubbles to the caller's {@code @Retryable} backoff). If every model is
+     * skipped, the last such exception is rethrown (it is not retryable, so the caller does not keep
+     * hammering an exhausted quota). Which fallback model ultimately answered is logged at INFO.
      */
     private GenerateContentResponse generateContent(Content content) {
         var config = buildConfig();
@@ -109,7 +111,16 @@ public class GeminiSummaryService {
         for (int i = 0; i < models.size(); i++) {
             var current = models.get(i);
             try {
-                return client.models.generateContent(current, content, config);
+                var response = client.models.generateContent(current, content, config);
+                if (i > 0) {
+                    log.info("Gemini response produced by fallback model {}", current);
+                }
+                return response;
+            } catch (ServerException e) {
+                // 5xx is not a model-fallback trigger — it bubbles to @Retryable's backoff. Logged
+                // here (instead of propagating silently) so the failing model and code are visible.
+                log.warn("Gemini model {} returned a server error ({}), bubbling up to retry", current, e.code());
+                throw e;
             } catch (ClientException e) {
                 if (e.code() != HTTP_TOO_MANY_REQUESTS && e.code() != HTTP_NOT_FOUND) {
                     throw e;
@@ -117,7 +128,7 @@ public class GeminiSummaryService {
                 lastSkippable = e;
                 var reason = e.code() == HTTP_NOT_FOUND ? "404 (model unavailable)" : "429 (quota/rate limit)";
                 if (i < models.size() - 1) {
-                    log.warn("Gemini model {} returned {}, falling back to next model {}",
+                    log.warn("Gemini model {} returned {}, trying next model {}",
                             current, reason, models.get(i + 1));
                 } else {
                     log.warn("Gemini model {} returned {} and no fallback models remain", current, reason);
