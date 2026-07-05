@@ -7,8 +7,11 @@ import com.google.genai.Client;
 import com.google.genai.errors.ClientException;
 import com.google.genai.errors.ServerException;
 import com.google.genai.types.Content;
+import com.google.genai.types.FinishReason;
+import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.Part;
+import com.google.genai.types.ThinkingConfig;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -29,9 +32,22 @@ public class GeminiSummaryService {
     private static final String EMPTY_MONTHLY_SUMMARY = "📭 No daily summaries found for this month.";
 
     private static final int HTTP_TOO_MANY_REQUESTS = 429;
+    private static final int HTTP_NOT_FOUND = 404;
 
-    private final String model;
-    private final String backupModel;
+    /**
+     * Models tried in order. On a 429 (quota / rate limit exhausted) the request falls through to
+     * the next model in the list; the first that responds wins.
+     */
+    private final List<String> models;
+    /** Cap on output tokens per response; &lt;= 0 means "unset" (keep the model default). */
+    private final int maxOutputTokens;
+    /**
+     * Thinking-token budget for "thinking" models. A negative value means "unset" (keep the model
+     * default); {@code >= 0} caps internal reasoning so the model is forced to leave room for a
+     * visible answer, preventing MAX_TOKENS empty responses on large multimodal transcripts
+     * ({@code 0} disables thinking entirely).
+     */
+    private final int thinkingBudget;
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
             .withZone(ZoneId.systemDefault());
     private final Client client;
@@ -40,13 +56,21 @@ public class GeminiSummaryService {
 
     public GeminiSummaryService(
             @Value("${gemini.api-key}") String apiKey,
-            @Value("${gemini.model}") String model,
-            @Value("${gemini.backup-model:}") String backupModel,
+            @Value("${gemini.models}") List<String> models,
+            @Value("${gemini.max-output-tokens:-1}") int maxOutputTokens,
+            @Value("${gemini.thinking-budget:-1}") int thinkingBudget,
             VoiceStorageService voiceStorageService,
             AdminNotificationService adminNotificationService
     ) {
-        this.model = model;
-        this.backupModel = backupModel;
+        this.models = models.stream()
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .toList();
+        if (this.models.isEmpty()) {
+            throw new IllegalStateException("gemini.models must list at least one model");
+        }
+        this.maxOutputTokens = maxOutputTokens;
+        this.thinkingBudget = thinkingBudget;
         this.client = Client.builder()
                 .apiKey(apiKey)
                 .build();
@@ -55,21 +79,74 @@ public class GeminiSummaryService {
     }
 
     /**
-     * Calls Gemini with the primary model and, when it returns HTTP 429 (rate limited / quota
-     * exhausted), retries the same request once on the configured backup model.
+     * Builds the per-request generation config, or {@code null} when nothing is configured (so the
+     * SDK sends no config, preserving model defaults).
+     */
+    private GenerateContentConfig buildConfig() {
+        if (maxOutputTokens <= 0 && thinkingBudget < 0) {
+            return null;
+        }
+        var builder = GenerateContentConfig.builder();
+        if (maxOutputTokens > 0) {
+            builder.maxOutputTokens(maxOutputTokens);
+        }
+        if (thinkingBudget >= 0) {
+            builder.thinkingConfig(ThinkingConfig.builder().thinkingBudget(thinkingBudget).build());
+        }
+        return builder.build();
+    }
+
+    /**
+     * Calls Gemini, walking the configured model list in order. It falls through to the next model
+     * on HTTP 429 (rate limited / quota exhausted) or 404 (model unavailable / bad id) — both mean
+     * "this model won't serve the request, try another". Any other {@link ClientException} (e.g.
+     * 400/403) is rethrown immediately. If every model is skipped, the last such exception is
+     * rethrown (it is not retryable, so the caller does not keep hammering an exhausted quota).
      */
     private GenerateContentResponse generateContent(Content content) {
-        try {
-            return client.models.generateContent(model, content, null);
-        } catch (ClientException e) {
-            if (e.code() == HTTP_TOO_MANY_REQUESTS
-                    && backupModel != null && !backupModel.isBlank()
-                    && !backupModel.equals(model)) {
-                log.warn("Gemini model {} returned 429, falling back to backup model {}", model, backupModel);
-                return client.models.generateContent(backupModel, content, null);
+        var config = buildConfig();
+        ClientException lastSkippable = null;
+        for (int i = 0; i < models.size(); i++) {
+            var current = models.get(i);
+            try {
+                return client.models.generateContent(current, content, config);
+            } catch (ClientException e) {
+                if (e.code() != HTTP_TOO_MANY_REQUESTS && e.code() != HTTP_NOT_FOUND) {
+                    throw e;
+                }
+                lastSkippable = e;
+                var reason = e.code() == HTTP_NOT_FOUND ? "404 (model unavailable)" : "429 (quota/rate limit)";
+                if (i < models.size() - 1) {
+                    log.warn("Gemini model {} returned {}, falling back to next model {}",
+                            current, reason, models.get(i + 1));
+                } else {
+                    log.warn("Gemini model {} returned {} and no fallback models remain", current, reason);
+                }
             }
-            throw e;
         }
+        throw lastSkippable;
+    }
+
+    /**
+     * Extracts the response text, or classifies why it is empty. {@code MAX_TOKENS} means the model
+     * ran out of output budget (usually on thinking) and produced no answer — deterministic for the
+     * same input, so a {@link GeminiTruncatedResponseException} is thrown and <b>not</b> retried to
+     * avoid burning quota. Anything else empty is treated as a transient
+     * {@link GeminiEmptyResponseException} and retried.
+     */
+    private String requireText(GenerateContentResponse response, String operation) {
+        var result = response.text();
+        if (result != null) {
+            return result;
+        }
+        var finishReason = response.finishReason();
+        log.warn("Gemini returned no text for {} (finishReason={})", operation, finishReason);
+        if (finishReason.knownEnum() == FinishReason.Known.MAX_TOKENS) {
+            throw new GeminiTruncatedResponseException(
+                    "Gemini hit MAX_TOKENS with no visible text for " + operation
+                            + " — raise gemini.max-output-tokens or cap gemini.thinking-budget");
+        }
+        throw new GeminiEmptyResponseException("Gemini returned empty response for " + operation);
     }
 
     @Retryable(
@@ -145,13 +222,7 @@ public class GeminiSummaryService {
 
         var response = generateContent(content);
         reportTokenUsage("summary", messages.getFirst().chatId(), response);
-        var result = response.text();
-        if (result == null) {
-            log.warn("Gemini returned empty response for chat summary");
-            throw new GeminiEmptyResponseException("Gemini returned empty response");
-        }
-
-        return result;
+        return requireText(response, "chat summary");
     }
 
     private void reportTokenUsage(String operation, long chatId, GenerateContentResponse response) {
@@ -231,12 +302,7 @@ public class GeminiSummaryService {
 
         var response = generateContent(content);
         reportTokenUsage("monthly summary", summaries.getFirst().chatId(), response);
-        var result = response.text();
-        if (result == null) {
-            throw new GeminiEmptyResponseException("Gemini returned empty response for monthly summary");
-        }
-
-        return result;
+        return requireText(response, "monthly summary");
     }
 
 }
