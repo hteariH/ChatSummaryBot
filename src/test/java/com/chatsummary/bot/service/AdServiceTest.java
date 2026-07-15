@@ -85,36 +85,75 @@ class AdServiceTest {
         assertThat(invoice.getChatId()).isEqualTo(Long.toString(CHAT_ID));
     }
 
+    private void stubCredits(int credits) {
+        var config = new ChatConfig(CHAT_ID, "0 0 9 * * *");
+        config.setLanguage("English");
+        config.setSummaryCredits(credits);
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(config);
+    }
+
     @Test
-    void consumeCreditDoesNotShowAdWhileCreditsRemain() throws Exception {
-        stubLanguage("English");
+    void applyPaywallDoesNotShowAdWhileCreditsRemain() throws Exception {
+        stubCredits(6);
         when(chatConfigService.consumeSummaryCredit(CHAT_ID)).thenReturn(5);
 
-        adService.consumeCreditAndMaybeShowAd(CHAT_ID);
+        adService.applyPaywallAfterSummary(CHAT_ID);
 
         verify(chatConfigService).consumeSummaryCredit(CHAT_ID);
         verify(telegramClient, never()).execute(any(SendInvoice.class));
     }
 
     @Test
-    void consumeCreditShowsAdWhenCreditsHitZero() throws Exception {
-        stubLanguage("English");
+    void applyPaywallShowsAdWhenLastCreditIsConsumed() throws Exception {
+        stubCredits(1);
         when(chatConfigService.consumeSummaryCredit(CHAT_ID)).thenReturn(0);
 
-        adService.consumeCreditAndMaybeShowAd(CHAT_ID);
+        adService.applyPaywallAfterSummary(CHAT_ID);
 
         verify(telegramClient).execute(any(SendInvoice.class));
     }
 
     @Test
-    void consumeCreditDoesNothingWhenCreditsDisabled() {
-        var config = new ChatConfig(CHAT_ID, "0 0 9 * * *");
-        config.setSummaryCredits(-1);
-        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(config);
+    void applyPaywallKeepsOfferingWhenAlreadyExhausted() throws Exception {
+        stubCredits(0);
 
-        adService.consumeCreditAndMaybeShowAd(CHAT_ID);
+        adService.applyPaywallAfterSummary(CHAT_ID);
 
         verify(chatConfigService, never()).consumeSummaryCredit(anyLong());
+        verify(telegramClient).execute(any(SendInvoice.class));
+    }
+
+    @Test
+    void applyPaywallDoesNothingWhenCreditsDisabled() {
+        stubCredits(-1);
+
+        adService.applyPaywallAfterSummary(CHAT_ID);
+
+        verify(chatConfigService, never()).consumeSummaryCredit(anyLong());
+    }
+
+    @Test
+    void hasFullSummaryAccessOnlyWhenCreditsAreNonZero() {
+        stubCredits(3);
+        assertThat(adService.hasFullSummaryAccess(CHAT_ID)).isTrue();
+
+        stubCredits(-1);
+        assertThat(adService.hasFullSummaryAccess(CHAT_ID)).isTrue();
+
+        stubCredits(0);
+        assertThat(adService.hasFullSummaryAccess(CHAT_ID)).isFalse();
+    }
+
+    @Test
+    void buildPaywalledSummaryTruncatesToFiftyCharsAndStripsHtml() {
+        stubCredits(0);
+        var summary = "<b>Alice</b> and Bob argued about the new deployment schedule for the whole afternoon.";
+
+        var paywalled = adService.buildPaywalledSummary(CHAT_ID, summary);
+
+        assertThat(paywalled).doesNotContain("<b>");
+        assertThat(paywalled.split("\n\n")[0]).hasSize(51).endsWith("…"); // 50 chars + ellipsis
+        assertThat(paywalled).contains("out of summaries");
     }
 
     @Test

@@ -117,7 +117,11 @@ public class DailySummaryScheduler {
             prevTailMessageId = firstNonNull(config.getLastSummaryTailMessageId(), prevMessageId);
             prevTailText = firstNonNull(config.getLastSummaryTailText(), config.getLastSummaryText());
 
-            var body = "📋 *Summary*\n\n" + summary;
+            // Chats that have run out of credits only get a short teaser + a pay prompt.
+            var visibleSummary = adService.hasFullSummaryAccess(chatId)
+                    ? summary
+                    : adService.buildPaywalledSummary(chatId, summary);
+            var body = "📋 *Summary*\n\n" + visibleSummary;
             var textToSend = withPreviousLink(chatId, body, prevMessageId);
             sentSummary = chatSummaryBot.sendSummaryMessage(chatId, textToSend);
         } catch (Exception exception) {
@@ -147,7 +151,7 @@ public class DailySummaryScheduler {
                 messageService.saveDailySummary(chatId, summary);
             }
 
-            adService.consumeCreditAndMaybeShowAd(chatId);
+            adService.applyPaywallAfterSummary(chatId);
 
             messageService.clearOldMessages(chatId, Instant.now());
             log.info("Sent scheduled summary to chat {} ({} messages)", chatId, messageCount);

@@ -71,6 +71,7 @@ class DailySummarySchedulerTest {
         when(chatSummaryBot.sendSummaryMessage(eq(CHAT_ID), anyString()))
                 .thenReturn(new ChatSummaryBot.SentMessageResult(10, 10, "chunk"));
         when(chatSummaryBot.getChatTitle(anyLong())).thenReturn("Test Chat");
+        when(adService.hasFullSummaryAccess(CHAT_ID)).thenReturn(true);
     }
 
     @Test
@@ -117,7 +118,7 @@ class DailySummarySchedulerTest {
         scheduler.sendScheduledSummaries();
 
         verify(chatConfigService, never()).updateLastProcessedAt(anyLong(), any());
-        verify(adService, never()).consumeCreditAndMaybeShowAd(anyLong());
+        verify(adService, never()).applyPaywallAfterSummary(anyLong());
         verify(messageService, never()).clearOldMessages(anyLong(), any());
     }
 
@@ -127,7 +128,7 @@ class DailySummarySchedulerTest {
         when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, EVERY_MINUTE_CRON));
         mockSuccessfulPipeline();
         org.mockito.Mockito.doThrow(new RuntimeException("Mongo down"))
-                .when(adService).consumeCreditAndMaybeShowAd(CHAT_ID);
+                .when(adService).applyPaywallAfterSummary(CHAT_ID);
 
         scheduler.sendScheduledSummaries();
 

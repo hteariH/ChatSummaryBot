@@ -23,7 +23,12 @@ import java.util.List;
 @Service
 public class AdService {
 
-    private static final int CREDITS_PER_PURCHASE = 300;
+    /** Price of one purchase, in Telegram Stars. */
+    private static final int STAR_PRICE = 300;
+    /** Ad-free summaries granted per purchase. */
+    private static final int SUMMARIES_PER_PURCHASE = 30;
+    /** Characters of the summary shown to chats that have run out of credits. */
+    private static final int TEASER_CHARS = 50;
 
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
@@ -59,29 +64,72 @@ public class AdService {
 
     /**
      * Credit a completed payment, thank the donor in the chat language, and notify the admin.
+     * Each purchase grants a fixed {@link #SUMMARIES_PER_PURCHASE} credits regardless of the paid amount.
      */
     public void handleSuccessfulPayment(long chatId, String donorName, int stars) {
-        chatConfigService.addSummaryCredits(chatId, stars);
+        chatConfigService.addSummaryCredits(chatId, SUMMARIES_PER_PURCHASE);
         var lang = resolvePayLang(chatId);
         var thanks = switch (lang) {
-            case RU -> "✅ Спасибо, %s! Добавлено %d саммари без рекламы.".formatted(donorName, stars);
-            case UK -> "✅ Дякуємо, %s! Додано %d саммарі без реклами.".formatted(donorName, stars);
-            case EN -> "✅ Thank you, %s! Added %d ad-free summaries.".formatted(donorName, stars);
+            case RU -> "✅ Спасибо, %s! Добавлено %d саммари для этого чата.".formatted(donorName, SUMMARIES_PER_PURCHASE);
+            case UK -> "✅ Дякуємо, %s! Додано %d саммарі для цього чату.".formatted(donorName, SUMMARIES_PER_PURCHASE);
+            case EN -> "✅ Thank you, %s! Added %d summaries for this chat.".formatted(donorName, SUMMARIES_PER_PURCHASE);
         };
         sendMessage(chatId, thanks);
-        adminNotificationService.notifyPayment(chatId, donorName, stars, stars);
+        adminNotificationService.notifyPayment(chatId, donorName, stars, SUMMARIES_PER_PURCHASE);
     }
 
     /**
-     * Consume one ad-free credit for the chat and, when they run out, show the ad.
+     * Whether the chat may receive the full summary text. {@code false} only once the paid
+     * credits are exhausted ({@code == 0}); a negative credit count disables the paywall entirely.
      */
-    public void consumeCreditAndMaybeShowAd(long chatId) {
-        if (chatConfigService.getChatConfig(chatId).getSummaryCredits() >= 0) {
-            var remaining = chatConfigService.consumeSummaryCredit(chatId);
-            if (remaining == 0) {
-                sendAdWithRemoveOption(chatId);
-            }
+    public boolean hasFullSummaryAccess(long chatId) {
+        return chatConfigService.getChatConfig(chatId).getSummaryCredits() != 0;
+    }
+
+    /**
+     * Build the paywalled summary shown to chats that have run out of credits: the first
+     * {@link #TEASER_CHARS} characters of the summary (HTML stripped) plus a localized pay prompt.
+     */
+    public String buildPaywalledSummary(long chatId, String summary) {
+        var plain = summary == null
+                ? ""
+                : summary.replaceAll("(?s)<[^>]+>", " ").replaceAll("\\s+", " ").strip();
+        var teaser = plain.length() > TEASER_CHARS
+                ? plain.substring(0, TEASER_CHARS).strip() + "…"
+                : plain;
+        return teaser + "\n\n" + paywallNotice(chatId);
+    }
+
+    /**
+     * Update the paywall after a summary was delivered: consume a credit while any remain and,
+     * once they run out (or are already gone), (re)send the purchase offer. A negative credit
+     * count means the paywall is disabled for the chat.
+     */
+    public void applyPaywallAfterSummary(long chatId) {
+        var credits = chatConfigService.getChatConfig(chatId).getSummaryCredits();
+        if (credits < 0) {
+            return;
         }
+        if (credits == 0) {
+            // Already exhausted: only a teaser was sent, so keep offering the purchase.
+            sendAdWithRemoveOption(chatId);
+            return;
+        }
+        var remaining = chatConfigService.consumeSummaryCredit(chatId);
+        if (remaining == 0) {
+            sendAdWithRemoveOption(chatId);
+        }
+    }
+
+    private String paywallNotice(long chatId) {
+        return switch (resolvePayLang(chatId)) {
+            case RU -> "🔒 Саммари для этого чата закончились. Оплатите %d ⭐, чтобы снова получать полные саммари."
+                    .formatted(STAR_PRICE);
+            case UK -> "🔒 Саммарі для цього чату закінчилися. Сплатіть %d ⭐, щоб знову отримувати повні саммарі."
+                    .formatted(STAR_PRICE);
+            case EN -> "🔒 This chat is out of summaries. Pay %d ⭐ to get full summaries again."
+                    .formatted(STAR_PRICE);
+        };
     }
 
     /**
@@ -111,7 +159,7 @@ public class AdService {
                     .description(description)
                     .payload("summary_credits")
                     .currency("XTR")
-                    .price(new LabeledPrice(priceLabel, CREDITS_PER_PURCHASE))
+                    .price(new LabeledPrice(priceLabel, STAR_PRICE))
                     .build();
             telegramClient.execute(invoice);
         } catch (Exception exception) {
