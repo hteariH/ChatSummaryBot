@@ -20,7 +20,8 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery;
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.payments.PreCheckoutQuery;
 
 class AdServiceTest {
@@ -161,18 +162,23 @@ class AdServiceTest {
     }
 
     @Test
-    void paymentRevealsPendingFullSummaryInPlace() throws Exception {
+    void paymentPostsFullSummaryAnewAndDeletesTeaser() throws Exception {
         var config = new ChatConfig(CHAT_ID, "0 0 9 * * *");
         config.setLanguage("English");
         config.setPendingFullSummaryMessageId(42);
         config.setPendingFullSummaryText("📋 <b>Summary</b>\n\nThe full text the chat paid to read.");
         when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(config);
+        var sent = Mockito.mock(Message.class);
+        when(sent.getMessageId()).thenReturn(99);
+        when(telegramClient.execute(any(SendMessage.class))).thenReturn(sent);
 
         adService.handleSuccessfulPayment(CHAT_ID, "Alice", 300);
 
-        // The teaser message (id 42) is edited in place to the full text, and the stash is cleared.
-        verify(telegramClient).execute(any(EditMessageText.class));
-        verify(chatConfigService).updateLastSummary(eq(CHAT_ID), eq(42), eq(42), anyString());
+        // Full text is posted as a new message (id 99), the old teaser (id 42) is deleted, stash cleared.
+        var delete = ArgumentCaptor.forClass(DeleteMessage.class);
+        verify(telegramClient).execute(delete.capture());
+        assertThat(delete.getValue().getMessageId()).isEqualTo(42);
+        verify(chatConfigService).updateLastSummary(eq(CHAT_ID), eq(99), eq(99), anyString());
         verify(chatConfigService).clearPendingFullSummary(CHAT_ID);
     }
 

@@ -9,7 +9,7 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery;
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice;
 import org.telegram.telegrambots.meta.api.objects.payments.PreCheckoutQuery;
 
@@ -125,38 +125,45 @@ public class AdService {
     }
 
     /**
-     * If the chat's most recent summary was delivered truncated (paywalled), edit that message
-     * in place to reveal the full text now that the chat has paid, then forget the stashed copy.
+     * If the chat's most recent summary was delivered truncated (paywalled), post the full text as
+     * a fresh message now that the chat has paid, delete the old teaser, and forget the stash.
      */
     private void revealPendingSummary(long chatId) {
         var config = chatConfigService.getChatConfig(chatId);
-        var messageId = config.getPendingFullSummaryMessageId();
+        var teaserMessageId = config.getPendingFullSummaryMessageId();
         var fullText = config.getPendingFullSummaryText();
-        if (messageId == null || fullText == null) {
+        if (teaserMessageId == null || fullText == null) {
             return;
         }
         var chunks = ChatSummaryBot.splitMessage(cleanHtml(fullText));
-        editMessage(chatId, messageId, chunks.get(0));
-        for (int i = 1; i < chunks.size(); i++) {
-            sendMessage(chatId, chunks.get(i));
+        Integer firstNewId = null;
+        Integer lastNewId = null;
+        for (var chunk : chunks) {
+            var sentId = sendMessageReturningId(chatId, chunk);
+            if (sentId != null) {
+                if (firstNewId == null) {
+                    firstNewId = sentId;
+                }
+                lastNewId = sentId;
+            }
         }
-        // The revealed message now holds the full text: keep it as the navigation tail so the
-        // next summary's back-link edits the full body instead of reverting it to the teaser.
-        chatConfigService.updateLastSummary(chatId, messageId, messageId, chunks.get(chunks.size() - 1));
+        // Drop the truncated teaser now that the full summary has been posted anew.
+        deleteMessage(chatId, teaserMessageId);
+        if (firstNewId != null && lastNewId != null) {
+            // Point navigation at the fresh message so the next summary's back-link lands on it.
+            chatConfigService.updateLastSummary(chatId, firstNewId, lastNewId, chunks.get(chunks.size() - 1));
+        }
         chatConfigService.clearPendingFullSummary(chatId);
     }
 
-    private void editMessage(long chatId, Integer messageId, String text) {
+    private void deleteMessage(long chatId, Integer messageId) {
         try {
-            var edit = EditMessageText.builder()
+            telegramClient.execute(DeleteMessage.builder()
                     .chatId(Long.toString(chatId))
                     .messageId(messageId)
-                    .parseMode("HTML")
-                    .text(text)
-                    .build();
-            telegramClient.execute(edit);
+                    .build());
         } catch (Exception exception) {
-            log.warn("Failed to reveal full summary in chat {} (message {})", chatId, messageId, exception);
+            log.warn("Failed to delete teaser message {} in chat {}", messageId, chatId, exception);
         }
     }
 
@@ -216,15 +223,21 @@ public class AdService {
     }
 
     private void sendMessage(long chatId, String text) {
+        sendMessageReturningId(chatId, text);
+    }
+
+    private Integer sendMessageReturningId(long chatId, String text) {
         try {
             var message = SendMessage.builder()
                     .chatId(Long.toString(chatId))
                     .parseMode("HTML")
                     .text(text)
                     .build();
-            telegramClient.execute(message);
+            var sent = telegramClient.execute(message);
+            return sent == null ? null : sent.getMessageId();
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
+            return null;
         }
     }
 
