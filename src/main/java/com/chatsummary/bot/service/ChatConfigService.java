@@ -98,4 +98,25 @@ public class ChatConfigService {
         config.setSummaryCredits(config.getSummaryCredits() + stars);
         chatConfigRepository.save(config);
     }
+
+    /**
+     * Remember the full text (and its message id) of a summary that was delivered truncated
+     * because the chat was out of credits, so it can be revealed once the chat pays.
+     */
+    public void setPendingFullSummary(long chatId, Integer messageId, String text) {
+        var config = getChatConfig(chatId);
+        config.setPendingFullSummaryMessageId(messageId);
+        config.setPendingFullSummaryText(text);
+        chatConfigRepository.save(config);
+    }
+
+    public void clearPendingFullSummary(long chatId) {
+        var config = getChatConfig(chatId);
+        if (config.getPendingFullSummaryMessageId() == null && config.getPendingFullSummaryText() == null) {
+            return;
+        }
+        config.setPendingFullSummaryMessageId(null);
+        config.setPendingFullSummaryText(null);
+        chatConfigRepository.save(config);
+    }
 }

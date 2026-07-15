@@ -1,5 +1,6 @@
 package com.chatsummary.bot.service;
 
+import com.chatsummary.bot.telegram.ChatSummaryBot;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +9,7 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery;
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice;
 import org.telegram.telegrambots.meta.api.objects.payments.PreCheckoutQuery;
 
@@ -68,6 +70,7 @@ public class AdService {
      */
     public void handleSuccessfulPayment(long chatId, String donorName, int stars) {
         chatConfigService.addSummaryCredits(chatId, SUMMARIES_PER_PURCHASE);
+        revealPendingSummary(chatId);
         var lang = resolvePayLang(chatId);
         var thanks = switch (lang) {
             case RU -> "✅ Спасибо, %s! Добавлено %d саммари для этого чата.".formatted(donorName, SUMMARIES_PER_PURCHASE);
@@ -119,6 +122,51 @@ public class AdService {
         if (remaining == 0) {
             sendAdWithRemoveOption(chatId);
         }
+    }
+
+    /**
+     * If the chat's most recent summary was delivered truncated (paywalled), edit that message
+     * in place to reveal the full text now that the chat has paid, then forget the stashed copy.
+     */
+    private void revealPendingSummary(long chatId) {
+        var config = chatConfigService.getChatConfig(chatId);
+        var messageId = config.getPendingFullSummaryMessageId();
+        var fullText = config.getPendingFullSummaryText();
+        if (messageId == null || fullText == null) {
+            return;
+        }
+        var chunks = ChatSummaryBot.splitMessage(cleanHtml(fullText));
+        editMessage(chatId, messageId, chunks.get(0));
+        for (int i = 1; i < chunks.size(); i++) {
+            sendMessage(chatId, chunks.get(i));
+        }
+        // The revealed message now holds the full text: keep it as the navigation tail so the
+        // next summary's back-link edits the full body instead of reverting it to the teaser.
+        chatConfigService.updateLastSummary(chatId, messageId, messageId, chunks.get(chunks.size() - 1));
+        chatConfigService.clearPendingFullSummary(chatId);
+    }
+
+    private void editMessage(long chatId, Integer messageId, String text) {
+        try {
+            var edit = EditMessageText.builder()
+                    .chatId(Long.toString(chatId))
+                    .messageId(messageId)
+                    .parseMode("HTML")
+                    .text(text)
+                    .build();
+            telegramClient.execute(edit);
+        } catch (Exception exception) {
+            log.warn("Failed to reveal full summary in chat {} (message {})", chatId, messageId, exception);
+        }
+    }
+
+    private static String cleanHtml(String text) {
+        if (text == null) {
+            return null;
+        }
+        return text.replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)<p\\s*>", "")
+                .replaceAll("(?i)</p\\s*>", "\n");
     }
 
     private String paywallNotice(long chatId) {

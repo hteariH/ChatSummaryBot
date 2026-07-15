@@ -100,6 +100,8 @@ public class DailySummaryScheduler {
         Integer prevMessageId;
         Integer prevTailMessageId;
         String prevTailText;
+        boolean fullAccess;
+        String fullTextToSend;
         ChatSummaryBot.SentMessageResult sentSummary;
         try {
             var messages = messageService.getMessagesSince(chatId, since);
@@ -117,12 +119,14 @@ public class DailySummaryScheduler {
             prevTailMessageId = firstNonNull(config.getLastSummaryTailMessageId(), prevMessageId);
             prevTailText = firstNonNull(config.getLastSummaryTailText(), config.getLastSummaryText());
 
-            // Chats that have run out of credits only get a short teaser + a pay prompt.
-            var visibleSummary = adService.hasFullSummaryAccess(chatId)
-                    ? summary
-                    : adService.buildPaywalledSummary(chatId, summary);
-            var body = "📋 *Summary*\n\n" + visibleSummary;
-            var textToSend = withPreviousLink(chatId, body, prevMessageId);
+            // Chats that have run out of credits only get a short teaser + a pay prompt; the full
+            // text is stashed below so it can be revealed in place once the chat pays.
+            fullAccess = adService.hasFullSummaryAccess(chatId);
+            fullTextToSend = withPreviousLink(chatId, "📋 *Summary*\n\n" + summary, prevMessageId);
+            var textToSend = fullAccess
+                    ? fullTextToSend
+                    : withPreviousLink(chatId,
+                            "📋 *Summary*\n\n" + adService.buildPaywalledSummary(chatId, summary), prevMessageId);
             sentSummary = chatSummaryBot.sendSummaryMessage(chatId, textToSend);
         } catch (Exception exception) {
             log.error("Failed to send scheduled summary for chat {}", chatId, exception);
@@ -149,6 +153,12 @@ public class DailySummaryScheduler {
 
             if (chatConfigService.getChatConfig(chatId).isMonthlySummaryEnabled()) {
                 messageService.saveDailySummary(chatId, summary);
+            }
+
+            if (fullAccess) {
+                chatConfigService.clearPendingFullSummary(chatId);
+            } else {
+                chatConfigService.setPendingFullSummary(chatId, sentSummary.firstMessageId(), fullTextToSend);
             }
 
             adService.applyPaywallAfterSummary(chatId);

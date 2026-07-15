@@ -3,6 +3,8 @@ package com.chatsummary.bot.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +20,7 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery;
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.payments.PreCheckoutQuery;
 
 class AdServiceTest {
@@ -154,6 +157,22 @@ class AdServiceTest {
         assertThat(paywalled).doesNotContain("<b>");
         assertThat(paywalled.split("\n\n")[0]).hasSize(51).endsWith("…"); // 50 chars + ellipsis
         assertThat(paywalled).contains("out of summaries");
+    }
+
+    @Test
+    void paymentRevealsPendingFullSummaryInPlace() throws Exception {
+        var config = new ChatConfig(CHAT_ID, "0 0 9 * * *");
+        config.setLanguage("English");
+        config.setPendingFullSummaryMessageId(42);
+        config.setPendingFullSummaryText("📋 <b>Summary</b>\n\nThe full text the chat paid to read.");
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(config);
+
+        adService.handleSuccessfulPayment(CHAT_ID, "Alice", 300);
+
+        // The teaser message (id 42) is edited in place to the full text, and the stash is cleared.
+        verify(telegramClient).execute(any(EditMessageText.class));
+        verify(chatConfigService).updateLastSummary(eq(CHAT_ID), eq(42), eq(42), anyString());
+        verify(chatConfigService).clearPendingFullSummary(CHAT_ID);
     }
 
     @Test
