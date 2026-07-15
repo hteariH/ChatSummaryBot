@@ -30,7 +30,7 @@ public class AdService {
     /** Ad-free summaries granted per purchase. */
     private static final int SUMMARIES_PER_PURCHASE = 30;
     /** Characters of the summary shown to chats that have run out of credits. */
-    private static final int TEASER_CHARS = 50;
+    private static final int TEASER_CHARS = 100;
 
     private final ChatConfigService chatConfigService;
     private final AdminNotificationService adminNotificationService;
@@ -187,19 +187,19 @@ public class AdService {
         try {
             var lang = resolvePayLang(chatId);
             var title = switch (lang) {
-                case RU -> "Убрать рекламу";
-                case UK -> "Прибрати рекламу";
-                case EN -> "Remove ads";
+                case RU -> "Полные саммари";
+                case UK -> "Повні саммарі";
+                case EN -> "Full summaries";
             };
             var description = switch (lang) {
-                case RU -> "300 ⭐ = 30 саммари без рекламы для этого чата.";
-                case UK -> "300 ⭐ = 30 саммарі без реклами для цього чату.";
-                case EN -> "300 ⭐ = 30 ad-free summaries for this chat.";
+                case RU -> "300 ⭐ = 30 полных саммари для этого чата.";
+                case UK -> "300 ⭐ = 30 повних саммарі для цього чату.";
+                case EN -> "300 ⭐ = 30 full summaries for this chat.";
             };
             var priceLabel = switch (lang) {
-                case RU -> "300 звёзд = 30 саммари";
-                case UK -> "300 зірок = 30 саммарі";
-                case EN -> "300 ⭐ = 30 summaries";
+                case RU -> "300 ⭐ = 30 полных саммари";
+                case UK -> "300 ⭐ = 30 повних саммарі";
+                case EN -> "300 ⭐ = 30 full summaries";
             };
             var invoice = SendInvoice.builder()
                     .chatId(Long.toString(chatId))

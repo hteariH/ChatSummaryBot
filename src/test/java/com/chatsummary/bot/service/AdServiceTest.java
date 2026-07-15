@@ -70,10 +70,10 @@ class AdServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-            "Russian,   Убрать рекламу",
-            "Ukrainian, Прибрати рекламу",
-            "English,   Remove ads",
-            "Spanish,   Remove ads"
+            "Russian,   Полные саммари",
+            "Ukrainian, Повні саммарі",
+            "English,   Full summaries",
+            "Spanish,   Full summaries"
     })
     void sendAdWithRemoveOptionUsesLocalizedTitle(String language, String expectedTitle) throws Exception {
         stubLanguage(language);
@@ -148,14 +148,15 @@ class AdServiceTest {
     }
 
     @Test
-    void buildPaywalledSummaryTruncatesToFiftyCharsAndStripsHtml() {
+    void buildPaywalledSummaryTruncatesToOneHundredCharsAndStripsHtml() {
         stubCredits(0);
-        var summary = "<b>Alice</b> and Bob argued about the new deployment schedule for the whole afternoon.";
+        var summary = "<b>Alice</b> and Bob argued about the new deployment schedule for the whole "
+                + "afternoon, then moved on to debate the quarterly budget in great detail.";
 
         var paywalled = adService.buildPaywalledSummary(CHAT_ID, summary);
 
         assertThat(paywalled).doesNotContain("<b>");
-        assertThat(paywalled.split("\n\n")[0]).hasSize(51).endsWith("…"); // 50 chars + ellipsis
+        assertThat(paywalled.split("\n\n")[0]).hasSize(101).endsWith("…"); // 100 chars + ellipsis
         assertThat(paywalled).contains("out of summaries");
     }
 
