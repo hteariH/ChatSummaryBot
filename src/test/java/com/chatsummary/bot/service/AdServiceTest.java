@@ -106,15 +106,18 @@ class AdServiceTest {
 
         verify(chatConfigService).consumeSummaryCredit(CHAT_ID);
         verify(telegramClient, never()).execute(any(SendInvoice.class));
+        verify(telegramClient, never()).execute(any(SendMessage.class));
     }
 
     @Test
-    void applyPaywallShowsAdWhenLastCreditIsConsumed() throws Exception {
+    void applyPaywallWarnsAndShowsAdWhenLastCreditIsConsumed() throws Exception {
         stubCredits(1);
         when(chatConfigService.consumeSummaryCredit(CHAT_ID)).thenReturn(0);
 
         adService.applyPaywallAfterSummary(CHAT_ID);
 
+        // A "next summary will be truncated" warning precedes the invoice.
+        verify(telegramClient).execute(any(SendMessage.class));
         verify(telegramClient).execute(any(SendInvoice.class));
     }
 
@@ -126,6 +129,8 @@ class AdServiceTest {
 
         verify(chatConfigService, never()).consumeSummaryCredit(anyLong());
         verify(telegramClient).execute(any(SendInvoice.class));
+        // The teaser already carries the pay prompt: no extra warning message here.
+        verify(telegramClient, never()).execute(any(SendMessage.class));
     }
 
     @Test

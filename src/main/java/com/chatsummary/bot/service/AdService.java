@@ -124,8 +124,9 @@ public class AdService {
 
     /**
      * Update the paywall after a summary was delivered: consume a credit while any remain and,
-     * once they run out (or are already gone), (re)send the purchase offer. A negative credit
-     * count means the paywall is disabled for the chat.
+     * once they run out (or are already gone), (re)send the purchase offer. The summary that
+     * spends the last credit is followed by a warning that the next one will be truncated.
+     * A negative credit count means the paywall is disabled for the chat.
      */
     public void applyPaywallAfterSummary(long chatId) {
         var credits = chatConfigService.getChatConfig(chatId).getSummaryCredits();
@@ -139,8 +140,17 @@ public class AdService {
         }
         var remaining = chatConfigService.consumeSummaryCredit(chatId);
         if (remaining == 0) {
+            sendMessage(chatId, creditsExhaustedWarning(chatId));
             sendAdWithRemoveOption(chatId);
         }
+    }
+
+    private String creditsExhaustedWarning(long chatId) {
+        return switch (resolvePayLang(chatId)) {
+            case RU -> "⚠️ У вас закончились саммари. Следующее саммари будет обрезано — оплатите, чтобы получать полные.";
+            case UK -> "⚠️ У вас закінчилися саммарі. Наступне саммарі буде обрізане — сплатіть, щоб отримувати повні.";
+            case EN -> "⚠️ You've run out of summaries. The next summary will be truncated — pay to keep receiving full ones.";
+        };
     }
 
     /**
