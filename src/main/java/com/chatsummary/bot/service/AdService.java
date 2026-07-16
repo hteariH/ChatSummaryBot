@@ -25,6 +25,8 @@ import java.util.List;
 @Service
 public class AdService {
 
+    /** Invoice payload prefix; the chat id to credit is appended after the colon. */
+    private static final String PAYLOAD_PREFIX = "summary_credits:";
     /** Price of one purchase, in Telegram Stars. */
     private static final int STAR_PRICE = 300;
     /** Ad-free summaries granted per purchase. */
@@ -67,8 +69,14 @@ public class AdService {
     /**
      * Credit a completed payment, thank the donor in the chat language, and notify the admin.
      * Each purchase grants a fixed {@link #SUMMARIES_PER_PURCHASE} credits regardless of the paid amount.
+     *
+     * <p>Telegram delivers the {@code successful_payment} message to the payer's <em>private</em>
+     * chat with the bot, not the group the invoice was posted in, so the chat to credit is taken
+     * from the invoice payload ({@code summary_credits:<chatId>}). The chat the payment message
+     * arrived in is only a fallback for legacy payloads without a chat id.
      */
-    public void handleSuccessfulPayment(long chatId, String donorName, int stars) {
+    public void handleSuccessfulPayment(long paymentChatId, String invoicePayload, String donorName, int stars) {
+        var chatId = resolvePaidChatId(invoicePayload, paymentChatId);
         chatConfigService.addSummaryCredits(chatId, SUMMARIES_PER_PURCHASE);
         revealPendingSummary(chatId);
         var lang = resolvePayLang(chatId);
@@ -79,6 +87,17 @@ public class AdService {
         };
         sendMessage(chatId, thanks);
         adminNotificationService.notifyPayment(chatId, donorName, stars, SUMMARIES_PER_PURCHASE);
+    }
+
+    private static long resolvePaidChatId(String invoicePayload, long fallbackChatId) {
+        if (invoicePayload != null && invoicePayload.startsWith(PAYLOAD_PREFIX)) {
+            try {
+                return Long.parseLong(invoicePayload.substring(PAYLOAD_PREFIX.length()));
+            } catch (NumberFormatException exception) {
+                log.warn("Unparseable invoice payload '{}', crediting chat {}", invoicePayload, fallbackChatId);
+            }
+        }
+        return fallbackChatId;
     }
 
     /**
@@ -212,7 +231,7 @@ public class AdService {
                     .chatId(Long.toString(chatId))
                     .title(title)
                     .description(description)
-                    .payload("summary_credits")
+                    .payload(PAYLOAD_PREFIX + chatId)
                     .currency("XTR")
                     .price(new LabeledPrice(priceLabel, 1))//TODO UPDATE TO ACTUAL STAR AMOUNT(300)
                     .build();

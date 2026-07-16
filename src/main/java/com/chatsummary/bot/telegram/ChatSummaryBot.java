@@ -105,9 +105,12 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         var message = update.getMessage();
 
         if (message.hasSuccessfulPayment()) {
-            var stars = message.getSuccessfulPayment().getTotalAmount();
+            var payment = message.getSuccessfulPayment();
             var donorName = displayName(message.getFrom(), "Someone");
-            adService.handleSuccessfulPayment(message.getChatId(), donorName, stars);
+            // The successful_payment message arrives in the payer's private chat, so the chat to
+            // credit is carried in the invoice payload rather than taken from the message.
+            adService.handleSuccessfulPayment(
+                    message.getChatId(), payment.getInvoicePayload(), donorName, payment.getTotalAmount());
             return;
         }
 

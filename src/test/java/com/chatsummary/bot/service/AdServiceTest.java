@@ -2,6 +2,7 @@ package com.chatsummary.bot.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -57,7 +58,7 @@ class AdServiceTest {
     void handleSuccessfulPaymentCreditsThanksAndNotifies(String language, String expectedFragment) throws Exception {
         stubLanguage(language);
 
-        adService.handleSuccessfulPayment(CHAT_ID, "Alice", 30);
+        adService.handleSuccessfulPayment(CHAT_ID, "summary_credits:" + CHAT_ID, "Alice", 30);
 
         verify(chatConfigService).addSummaryCredits(CHAT_ID, 30);
         verify(adminNotificationService).notifyPayment(CHAT_ID, "Alice", 30, 30);
@@ -162,6 +163,29 @@ class AdServiceTest {
     }
 
     @Test
+    void paymentCreditsTheChatFromThePayloadNotThePaymentChat() {
+        // successful_payment arrives in the payer's private chat; the group id rides in the payload.
+        long privateChatId = 777L;
+        stubLanguage("English");
+        var privateConfig = new ChatConfig(privateChatId, "0 0 9 * * *");
+        when(chatConfigService.getChatConfig(privateChatId)).thenReturn(privateConfig);
+
+        adService.handleSuccessfulPayment(privateChatId, "summary_credits:" + CHAT_ID, "Alice", 300);
+
+        verify(chatConfigService).addSummaryCredits(CHAT_ID, 30);
+        verify(chatConfigService, never()).addSummaryCredits(eq(privateChatId), anyInt());
+    }
+
+    @Test
+    void paymentFallsBackToThePaymentChatForLegacyPayloads() {
+        stubLanguage("English");
+
+        adService.handleSuccessfulPayment(CHAT_ID, "summary_credits", "Alice", 300);
+
+        verify(chatConfigService).addSummaryCredits(CHAT_ID, 30);
+    }
+
+    @Test
     void paymentPostsFullSummaryAnewAndDeletesTeaser() throws Exception {
         var config = new ChatConfig(CHAT_ID, "0 0 9 * * *");
         config.setLanguage("English");
@@ -172,7 +196,7 @@ class AdServiceTest {
         when(sent.getMessageId()).thenReturn(99);
         when(telegramClient.execute(any(SendMessage.class))).thenReturn(sent);
 
-        adService.handleSuccessfulPayment(CHAT_ID, "Alice", 300);
+        adService.handleSuccessfulPayment(CHAT_ID, "summary_credits:" + CHAT_ID, "Alice", 300);
 
         // Full text is posted as a new message (id 99), the old teaser (id 42) is deleted, stash cleared.
         var delete = ArgumentCaptor.forClass(DeleteMessage.class);
