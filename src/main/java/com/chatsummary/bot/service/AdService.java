@@ -233,7 +233,7 @@ public class AdService {
                     .description(description)
                     .payload(PAYLOAD_PREFIX + chatId)
                     .currency("XTR")
-                    .price(new LabeledPrice(priceLabel, 1))//TODO UPDATE TO ACTUAL STAR AMOUNT(300)
+                    .price(new LabeledPrice(priceLabel, STAR_PRICE))
                     .build();
             telegramClient.execute(invoice);
         } catch (Exception exception) {
