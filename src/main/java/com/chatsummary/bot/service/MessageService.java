@@ -65,6 +65,13 @@ public class MessageService {
         log.info("Cleared {} messages before {} in chat {}", messagesToDelete.size(), before, chatId);
     }
 
+    /** Delete every stored message (with its attachments) and daily summary for a chat. */
+    public void purgeChat(long chatId) {
+        clearOldMessages(chatId, Instant.now());
+        clearOldDailySummaries(chatId);
+        log.info("Purged all stored messages and daily summaries for chat {}", chatId);
+    }
+
     public Set<Long> getAllActiveChatIds() {
         return chatMessageRepository.findAllChatIds()
                 .stream()

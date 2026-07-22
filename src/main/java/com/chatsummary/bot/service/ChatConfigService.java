@@ -110,6 +110,11 @@ public class ChatConfigService {
         chatConfigRepository.save(config);
     }
 
+    /** Remove a chat's settings row entirely (used when the bot is no longer in the chat). */
+    public void deleteChatConfig(long chatId) {
+        chatConfigRepository.deleteByChatId(chatId);
+    }
+
     public void clearPendingFullSummary(long chatId) {
         var config = getChatConfig(chatId);
         if (config.getPendingFullSummaryMessageId() == null && config.getPendingFullSummaryText() == null) {

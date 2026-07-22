@@ -34,6 +34,16 @@ public class AdminNotificationService {
         log.info("Bot added to new chat: {} ({}), by {}", chatTitle, chatId, addedBy);
     }
 
+    public void notifyChatRemoved(long chatId, String reason) {
+        var message = """
+                👋 *Бот удалён из чата*
+                *ID:* %d
+                *Причина:* %s
+                Все сообщения, дневные саммари и настройки этого чата очищены.""".formatted(chatId, reason);
+        chatSummaryBot.sendMessage(adminChatId, message);
+        log.info("Bot removed from chat {} ({}); purged its stored data", chatId, reason);
+    }
+
     public void notifyPayment(long chatId, String donorName, int stars, int creditsAdded) {
         var message = """
                 ⭐ *Оплата получена!*

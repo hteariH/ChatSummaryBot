@@ -9,4 +9,6 @@ import org.springframework.stereotype.Repository;
 public interface ChatConfigRepository extends MongoRepository<ChatConfig, String> {
 
     Optional<ChatConfig> findByChatId(long chatId);
+
+    void deleteByChatId(long chatId);
 }

@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,6 +44,15 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     private static final List<String> ADMIN_STATUSES = List.of("administrator", "creator");
     private static final List<String> INACTIVE_STATUSES = List.of("left", "kicked");
     private static final List<String> ACTIVE_STATUSES = List.of("member", "administrator");
+    // Telegram error fragments that mean the chat is gone / the bot can no longer reach it.
+    // Matched case-insensitively against the exception message (and its causes).
+    private static final List<String> CHAT_GONE_SIGNATURES = List.of(
+            "chat not found",
+            "bot was kicked",
+            "bot is not a member",
+            "bot was blocked",
+            "group chat was deactivated",
+            "peer_id_invalid");
     private static final Set<String> ADMIN_COMMANDS = Set.of(
             "/summary",
             "/setcron",
@@ -173,7 +183,41 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                     firstNonNull(chat.getTitle(), "Unknown"),
                     chat.getType(),
                     addedBy);
+        } else if (ACTIVE_STATUSES.contains(oldStatus) && INACTIVE_STATUSES.contains(newStatus)) {
+            // The bot was removed/kicked/blocked: drop the chat's stored data so the schedulers
+            // stop retrying (and re-notifying) forever for a chat we can no longer post to.
+            purgeRemovedChat(member.getChat().getId(), "membership change → " + newStatus);
         }
+    }
+
+    /**
+     * Forget everything about a chat the bot can no longer reach: its stored messages, daily
+     * summaries and settings. Safe to call repeatedly (deletes are idempotent). Never calls back
+     * into Telegram for the removed chat, so it can be invoked from a failed-send handler.
+     */
+    public void purgeRemovedChat(long chatId, String reason) {
+        log.info("Purging data for chat {} ({})", chatId, reason);
+        try {
+            messageService.purgeChat(chatId);
+            chatConfigService.deleteChatConfig(chatId);
+            adminNotificationService.notifyChatRemoved(chatId, reason);
+        } catch (Exception exception) {
+            log.error("Failed to purge data for removed chat {}", chatId, exception);
+        }
+    }
+
+    /** True when a Telegram failure means the chat is gone / unreachable, not a transient error. */
+    static boolean isChatGoneError(Throwable error) {
+        for (var cause = error; cause != null; cause = cause.getCause()) {
+            var message = cause.getMessage();
+            if (message != null) {
+                var lower = message.toLowerCase(Locale.ROOT);
+                if (CHAT_GONE_SIGNATURES.stream().anyMatch(lower::contains)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean handleCommand(long chatId, long userId, String text) {
@@ -390,6 +434,11 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             return new SentMessageResult(firstMessageId, lastMessageId, lastChunk);
         } catch (Exception exception) {
             log.error("Failed to send message to chat {}", chatId, exception);
+            // Safety net for a missed my_chat_member update (e.g. bot was offline when kicked):
+            // if the send failed because the chat is gone, purge it so we stop retrying.
+            if (isChatGoneError(exception)) {
+                purgeRemovedChat(chatId, "send failed: " + exception.getMessage());
+            }
             return null;
         }
     }

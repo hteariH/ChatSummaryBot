@@ -2,6 +2,7 @@ package com.chatsummary.bot.telegram;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.chatsummary.bot.service.AdService;
 import com.chatsummary.bot.service.AdminNotificationService;
@@ -86,5 +87,44 @@ class ChatSummaryBotTest {
         String expected = "Hello\nWorld\nNext\nLineParagraph\n<b>Bold</b>";
         
         assertThat(bot.cleanHtml(input)).isEqualTo(expected);
+    }
+
+    @Test
+    void isChatGoneErrorDetectsTelegramChatGoneMessages() {
+        assertThat(ChatSummaryBot.isChatGoneError(
+                new RuntimeException("[400] Bad Request: chat not found"))).isTrue();
+        assertThat(ChatSummaryBot.isChatGoneError(
+                new RuntimeException("Forbidden: bot was kicked from the group chat"))).isTrue();
+        // Signature can hide in a nested cause.
+        assertThat(ChatSummaryBot.isChatGoneError(
+                new RuntimeException("wrapper", new RuntimeException("PEER_ID_INVALID")))).isTrue();
+    }
+
+    @Test
+    void isChatGoneErrorIgnoresTransientErrors() {
+        assertThat(ChatSummaryBot.isChatGoneError(
+                new RuntimeException("[429] Too Many Requests"))).isFalse();
+        assertThat(ChatSummaryBot.isChatGoneError(new RuntimeException((String) null))).isFalse();
+    }
+
+    @Test
+    void purgeRemovedChatClearsDataAndNotifiesAdmin() {
+        var messageService = mock(MessageService.class);
+        var chatConfigService = mock(ChatConfigService.class);
+        var adminNotificationService = mock(AdminNotificationService.class);
+        var bot = new ChatSummaryBot(
+                "token",
+                messageService,
+                mock(GeminiSummaryService.class),
+                chatConfigService,
+                adminNotificationService,
+                mock(AdService.class)
+        );
+
+        bot.purgeRemovedChat(-1003427022824L, "kicked");
+
+        verify(messageService).purgeChat(-1003427022824L);
+        verify(chatConfigService).deleteChatConfig(-1003427022824L);
+        verify(adminNotificationService).notifyChatRemoved(-1003427022824L, "kicked");
     }
 }
