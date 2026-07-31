@@ -48,6 +48,12 @@ public class GeminiSummaryService {
      * ({@code 0} disables thinking entirely).
      */
     private final int thinkingBudget;
+    /**
+     * When {@code true}, asks Gemini to return its reasoning as "thought" parts so the admin report
+     * can include the thought process. Thought parts are excluded from {@code response.text()}, so
+     * this never leaks into the summary sent to the chat — it only costs a few extra output tokens.
+     */
+    private final boolean includeThoughts;
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
             .withZone(ZoneId.systemDefault());
     private final Client client;
@@ -59,6 +65,7 @@ public class GeminiSummaryService {
             @Value("${gemini.models}") List<String> models,
             @Value("${gemini.max-output-tokens:-1}") int maxOutputTokens,
             @Value("${gemini.thinking-budget:-1}") int thinkingBudget,
+            @Value("${gemini.include-thoughts:true}") boolean includeThoughts,
             VoiceStorageService voiceStorageService,
             AdminNotificationService adminNotificationService
     ) {
@@ -71,6 +78,7 @@ public class GeminiSummaryService {
         }
         this.maxOutputTokens = maxOutputTokens;
         this.thinkingBudget = thinkingBudget;
+        this.includeThoughts = includeThoughts;
         this.client = Client.builder()
                 .apiKey(apiKey)
                 .build();
@@ -83,15 +91,22 @@ public class GeminiSummaryService {
      * SDK sends no config, preserving model defaults).
      */
     private GenerateContentConfig buildConfig() {
-        if (maxOutputTokens <= 0 && thinkingBudget < 0) {
+        if (maxOutputTokens <= 0 && thinkingBudget < 0 && !includeThoughts) {
             return null;
         }
         var builder = GenerateContentConfig.builder();
         if (maxOutputTokens > 0) {
             builder.maxOutputTokens(maxOutputTokens);
         }
-        if (thinkingBudget >= 0) {
-            builder.thinkingConfig(ThinkingConfig.builder().thinkingBudget(thinkingBudget).build());
+        if (thinkingBudget >= 0 || includeThoughts) {
+            var thinking = ThinkingConfig.builder();
+            if (thinkingBudget >= 0) {
+                thinking.thinkingBudget(thinkingBudget);
+            }
+            if (includeThoughts) {
+                thinking.includeThoughts(true);
+            }
+            builder.thinkingConfig(thinking.build());
         }
         return builder.build();
     }
@@ -237,14 +252,40 @@ public class GeminiSummaryService {
     }
 
     private void reportTokenUsage(String operation, long chatId, GenerateContentResponse response) {
+        var thoughts = extractThoughts(response);
         response.usageMetadata().ifPresent(usage -> adminNotificationService.notifyTokenUsage(
                 operation,
                 chatId,
                 usage.promptTokenCount().orElse(0),
                 usage.thoughtsTokenCount().orElse(0),
                 usage.candidatesTokenCount().orElse(0),
-                usage.totalTokenCount().orElse(0)
+                usage.totalTokenCount().orElse(0),
+                thoughts
         ));
+    }
+
+    /**
+     * Concatenates the model's "thought" parts (returned only when {@code includeThoughts} is on),
+     * or {@code null} when the response carries none. Reporting must never break summarization, so
+     * any extraction failure — including the finish-reason check inside {@link
+     * GenerateContentResponse#parts()} — is swallowed and left to {@link #requireText} to classify.
+     */
+    private String extractThoughts(GenerateContentResponse response) {
+        try {
+            var parts = response.parts();
+            if (parts == null) {
+                return null;
+            }
+            var thoughts = parts.stream()
+                    .filter(part -> part.thought().orElse(false))
+                    .map(part -> part.text().orElse(""))
+                    .filter(text -> !text.isBlank())
+                    .collect(java.util.stream.Collectors.joining("\n\n"));
+            return thoughts.isBlank() ? null : thoughts;
+        } catch (RuntimeException exception) {
+            log.debug("Could not extract thought parts from Gemini response", exception);
+            return null;
+        }
     }
 
     private static String messageReference(ChatMessage message) {

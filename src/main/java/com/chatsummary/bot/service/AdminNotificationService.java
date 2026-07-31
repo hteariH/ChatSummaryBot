@@ -11,6 +11,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminNotificationService {
 
+    /**
+     * Budget for the escaped thought text. Kept well under Telegram's 4096-character limit so the
+     * report stays a single message — {@code sendMessage} splits longer text at newlines, which
+     * would tear the surrounding {@code <blockquote>} apart and get the message rejected.
+     */
+    private static final int MAX_THOUGHT_CHARS = 3500;
+
     private final long adminChatId;
     private final ChatSummaryBot chatSummaryBot;
     private final AtomicLong totalOutputTokens = new AtomicLong();
@@ -57,6 +64,16 @@ public class AdminNotificationService {
 
     public void notifyTokenUsage(String operation, long chatId, int promptTokens, int thoughtsTokens,
                                  int candidatesTokens, int totalTokens) {
+        notifyTokenUsage(operation, chatId, promptTokens, thoughtsTokens, candidatesTokens, totalTokens, null);
+    }
+
+    /**
+     * Reports token usage to the admin, followed by the model's thought process (when Gemini
+     * returned one) as a separate message — separate so a rejected thought message can never take
+     * the usage stats down with it.
+     */
+    public void notifyTokenUsage(String operation, long chatId, int promptTokens, int thoughtsTokens,
+                                 int candidatesTokens, int totalTokens, String thoughts) {
         // Gemini bills thinking + answer tokens as output.
         var outputTokens = thoughtsTokens + candidatesTokens;
         var cumulativeOutputTokens = totalOutputTokens.addAndGet(outputTokens);
@@ -76,6 +93,53 @@ public class AdminNotificationService {
                         + "output={}, accumulatedOutput={}",
                 operation, chatId, promptTokens, thoughtsTokens, candidatesTokens, totalTokens,
                 outputTokens, cumulativeOutputTokens);
+
+        notifyThoughtProcess(operation, chatId, thoughts);
+    }
+
+    private void notifyThoughtProcess(String operation, long chatId, String thoughts) {
+        if (thoughts == null || thoughts.isBlank()) {
+            return;
+        }
+
+        // Outgoing messages are parsed as HTML: the model's reasoning is free-form text, so it must
+        // be escaped or Telegram rejects the whole message on a stray '<'. Escaping happens before
+        // truncation because it can grow the text up to 5x, and the budget is on what is sent.
+        var body = escapeHtml(thoughts.strip());
+        var truncated = body.length() > MAX_THOUGHT_CHARS;
+        if (truncated) {
+            body = trimTrailingPartialEntity(body.substring(0, MAX_THOUGHT_CHARS));
+        }
+
+        var message = """
+                🧠 <b>Gemini thought process</b>
+                <b>Operation:</b> %s
+                <b>Chat ID:</b> %d
+
+                <blockquote expandable>%s</blockquote>%s""".formatted(
+                escapeHtml(operation),
+                chatId,
+                body,
+                truncated ? "\n… (truncated)" : "");
+        chatSummaryBot.sendMessage(adminChatId, message);
+    }
+
+    /**
+     * Drops a dangling half-written entity (e.g. {@code "&am"}) left by cutting escaped text, which
+     * Telegram would reject as malformed HTML.
+     */
+    private static String trimTrailingPartialEntity(String escaped) {
+        var lastAmp = escaped.lastIndexOf('&');
+        if (lastAmp >= 0 && escaped.indexOf(';', lastAmp) < 0) {
+            return escaped.substring(0, lastAmp);
+        }
+        return escaped;
+    }
+
+    private static String escapeHtml(String text) {
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     public void notifyOnFailure(long chatId, String groupName, String operation, Exception exception) {
