@@ -28,7 +28,7 @@ public class AdService {
     /** Invoice payload prefix; the chat id to credit is appended after the colon. */
     private static final String PAYLOAD_PREFIX = "summary_credits:";
     /** Price of one purchase, in Telegram Stars. */
-    private static final int STAR_PRICE = 300;
+    private static final int STAR_PRICE = 30;
     /** Ad-free summaries granted per purchase. */
     private static final int SUMMARIES_PER_PURCHASE = 30;
     /** Characters of the summary shown to chats that have run out of credits. */
@@ -228,14 +228,17 @@ public class AdService {
                 case EN -> "Full summaries";
             };
             var description = switch (lang) {
-                case RU -> "300 ⭐ = 30 полных саммари для этого чата.";
-                case UK -> "300 ⭐ = 30 повних саммарі для цього чату.";
-                case EN -> "300 ⭐ = 30 full summaries for this chat.";
+                case RU -> "%d ⭐ = %d полных саммари для этого чата."
+                        .formatted(STAR_PRICE, SUMMARIES_PER_PURCHASE);
+                case UK -> "%d ⭐ = %d повних саммарі для цього чату."
+                        .formatted(STAR_PRICE, SUMMARIES_PER_PURCHASE);
+                case EN -> "%d ⭐ = %d full summaries for this chat."
+                        .formatted(STAR_PRICE, SUMMARIES_PER_PURCHASE);
             };
             var priceLabel = switch (lang) {
-                case RU -> "300 ⭐ = 30 полных саммари";
-                case UK -> "300 ⭐ = 30 повних саммарі";
-                case EN -> "300 ⭐ = 30 full summaries";
+                case RU -> "%d ⭐ = %d полных саммари".formatted(STAR_PRICE, SUMMARIES_PER_PURCHASE);
+                case UK -> "%d ⭐ = %d повних саммарі".formatted(STAR_PRICE, SUMMARIES_PER_PURCHASE);
+                case EN -> "%d ⭐ = %d full summaries".formatted(STAR_PRICE, SUMMARIES_PER_PURCHASE);
             };
             var invoice = SendInvoice.builder()
                     .chatId(Long.toString(chatId))

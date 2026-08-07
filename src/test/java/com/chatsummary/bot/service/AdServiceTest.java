@@ -20,6 +20,7 @@ import org.mockito.Mockito;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.meta.api.methods.AnswerPreCheckoutQuery;
 import org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice;
+import org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
@@ -88,6 +89,8 @@ class AdServiceTest {
         assertThat(invoice.getTitle()).isEqualTo(expectedTitle);
         assertThat(invoice.getCurrency()).isEqualTo("XTR");
         assertThat(invoice.getChatId()).isEqualTo(Long.toString(CHAT_ID));
+        assertThat(invoice.getPrices()).singleElement()
+                .extracting(LabeledPrice::getAmount).isEqualTo(30);
     }
 
     private void stubCredits(int credits) {
@@ -175,7 +178,7 @@ class AdServiceTest {
         var privateConfig = new ChatConfig(privateChatId, "0 0 9 * * *");
         when(chatConfigService.getChatConfig(privateChatId)).thenReturn(privateConfig);
 
-        adService.handleSuccessfulPayment(privateChatId, "summary_credits:" + CHAT_ID, "Alice", 300);
+        adService.handleSuccessfulPayment(privateChatId, "summary_credits:" + CHAT_ID, "Alice", 30);
 
         verify(chatConfigService).addSummaryCredits(CHAT_ID, 30);
         verify(chatConfigService, never()).addSummaryCredits(eq(privateChatId), anyInt());
@@ -185,7 +188,7 @@ class AdServiceTest {
     void paymentFallsBackToThePaymentChatForLegacyPayloads() {
         stubLanguage("English");
 
-        adService.handleSuccessfulPayment(CHAT_ID, "summary_credits", "Alice", 300);
+        adService.handleSuccessfulPayment(CHAT_ID, "summary_credits", "Alice", 30);
 
         verify(chatConfigService).addSummaryCredits(CHAT_ID, 30);
     }
@@ -201,7 +204,7 @@ class AdServiceTest {
         when(sent.getMessageId()).thenReturn(99);
         when(telegramClient.execute(any(SendMessage.class))).thenReturn(sent);
 
-        adService.handleSuccessfulPayment(CHAT_ID, "summary_credits:" + CHAT_ID, "Alice", 300);
+        adService.handleSuccessfulPayment(CHAT_ID, "summary_credits:" + CHAT_ID, "Alice", 30);
 
         // Full text is posted as a new message (id 99), the old teaser (id 42) is deleted, stash cleared.
         var delete = ArgumentCaptor.forClass(DeleteMessage.class);
