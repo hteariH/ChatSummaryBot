@@ -14,7 +14,7 @@ telegram:
 gemini:
   api-key: ${GEMINI_API_KEY}
   # Models tried in order; on 429 (quota/rate limit) the request falls through to the next one.
-  models: ${GEMINI_MODELS:gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash}
+  models: ${GEMINI_MODELS:gemini-3.5-flash,gemini-3-flash-preview,gemini-3.6-flash,gemini-3.5-flash-lite}
   # Optional output tuning; -1 means "unset" (keep model defaults). Set thinking-budget (>= 0) to
   # cap internal "thinking" tokens so the model leaves room for a visible answer (prevents
   # MAX_TOKENS empty responses on large multimodal transcripts); 0 disables thinking entirely.
