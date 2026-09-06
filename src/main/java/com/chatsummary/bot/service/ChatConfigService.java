@@ -11,26 +11,33 @@ import org.springframework.stereotype.Service;
 public class ChatConfigService {
 
     private final ChatConfigRepository chatConfigRepository;
-    private final String defaultCron;
+    private final int defaultSummaryHour;
 
     public ChatConfigService(
             ChatConfigRepository chatConfigRepository,
-            @Value("${summary.cron}") String defaultCron
+            @Value("${summary.hour:21}") int defaultSummaryHour
     ) {
         this.chatConfigRepository = chatConfigRepository;
-        this.defaultCron = defaultCron;
+        this.defaultSummaryHour = defaultSummaryHour;
     }
 
     public ChatConfig getChatConfig(long chatId) {
         return chatConfigRepository.findByChatId(chatId)
-                .orElseGet(() -> new ChatConfig(chatId, defaultCron));
+                .orElseGet(() -> new ChatConfig(chatId, defaultSummaryHour));
     }
 
-    public void saveChatConfig(long chatId, String cron) {
+    public void saveChatConfig(long chatId, int summaryHour) {
         var config = chatConfigRepository.findByChatId(chatId)
-                .orElseGet(() -> new ChatConfig(chatId, cron));
-        config.setCron(cron);
+                .orElseGet(() -> new ChatConfig(chatId, summaryHour));
+        config.setSummaryHour(summaryHour);
+        config.setCron(null);
         chatConfigRepository.save(config);
+    }
+
+    @Deprecated
+    public void saveChatConfig(long chatId, String cron) {
+        int hour = ChatConfigMigrationService.extractHourFromCron(cron, defaultSummaryHour);
+        saveChatConfig(chatId, hour);
     }
 
     public void updateLastProcessedAt(long chatId, Instant timestamp) {

@@ -35,7 +35,7 @@ import org.mockito.quality.Strictness;
 class DailySummarySchedulerTest {
 
     private static final long CHAT_ID = -1001605482413L;
-    private static final String EVERY_MINUTE_CRON = "0 * * * * *";
+    private static final int DUE_HOUR = java.time.ZonedDateTime.now().getHour();
 
     @Mock
     private MessageService messageService;
@@ -58,9 +58,9 @@ class DailySummarySchedulerTest {
         scheduler.geminiThrottleMillis = 0L;
     }
 
-    private ChatConfig dueConfig(long chatId, String cron) {
-        var config = new ChatConfig(chatId, cron);
-        config.setLastProcessedAt(Instant.now().minusSeconds(3_600));
+    private ChatConfig dueConfig(long chatId, int hour) {
+        var config = new ChatConfig(chatId, hour);
+        config.setLastProcessedAt(java.time.ZonedDateTime.now().toLocalDate().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().minusSeconds(3600));
         return config;
     }
 
@@ -75,12 +75,12 @@ class DailySummarySchedulerTest {
     }
 
     @Test
-    void brokenCronForOneChatDoesNotBlockOtherChats() throws InterruptedException {
+    void brokenConfigForOneChatDoesNotBlockOtherChats() throws InterruptedException {
         long brokenChatId = -100L;
         Set<Long> chatIds = new LinkedHashSet<>(List.of(brokenChatId, CHAT_ID));
         when(messageService.getAllActiveChatIds()).thenReturn(chatIds);
-        when(chatConfigService.getChatConfig(brokenChatId)).thenReturn(new ChatConfig(brokenChatId, "not a cron"));
-        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, EVERY_MINUTE_CRON));
+        when(chatConfigService.getChatConfig(brokenChatId)).thenThrow(new RuntimeException("DB error"));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
         mockSuccessfulPipeline();
 
         scheduler.sendScheduledSummaries();
@@ -94,7 +94,7 @@ class DailySummarySchedulerTest {
     @Test
     void geminiFailureDoesNotAdvanceWatermark() throws InterruptedException {
         when(messageService.getAllActiveChatIds()).thenReturn(Set.of(CHAT_ID));
-        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, EVERY_MINUTE_CRON));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
         when(messageService.getMessagesSince(eq(CHAT_ID), any()))
                 .thenReturn(List.of(new ChatMessage(CHAT_ID, 1, "user", "hello")));
         when(geminiSummaryService.summarize(any(), anyString(), any()))
@@ -111,7 +111,7 @@ class DailySummarySchedulerTest {
     @Test
     void undeliveredSummaryDoesNotAdvanceWatermarkOrConsumeCredit() throws InterruptedException {
         when(messageService.getAllActiveChatIds()).thenReturn(Set.of(CHAT_ID));
-        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, EVERY_MINUTE_CRON));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
         mockSuccessfulPipeline();
         when(chatSummaryBot.sendSummaryMessage(eq(CHAT_ID), anyString())).thenReturn(null);
 
@@ -125,7 +125,7 @@ class DailySummarySchedulerTest {
     @Test
     void postSendFailureStillAdvancesWatermark() throws InterruptedException {
         when(messageService.getAllActiveChatIds()).thenReturn(Set.of(CHAT_ID));
-        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, EVERY_MINUTE_CRON));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
         mockSuccessfulPipeline();
         org.mockito.Mockito.doThrow(new RuntimeException("Mongo down"))
                 .when(adService).applyPaywallAfterSummary(CHAT_ID);
@@ -140,7 +140,7 @@ class DailySummarySchedulerTest {
     @Test
     void emptyChatAdvancesWatermarkWithoutGeminiCall() throws InterruptedException {
         when(messageService.getAllActiveChatIds()).thenReturn(Set.of(CHAT_ID));
-        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, EVERY_MINUTE_CRON));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
         when(messageService.getMessagesSince(eq(CHAT_ID), any())).thenReturn(List.of());
 
         scheduler.sendScheduledSummaries();

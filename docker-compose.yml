@@ -12,7 +12,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODELS=${GEMINI_MODELS:-gemini-3.5-flash,gemini-3-flash-preview,gemini-3.6-flash}
       - SPRING_MONGODB_URI=mongodb://mongodb:27017/chatsummarybot
-      - SUMMARY_CRON=${SUMMARY_CRON:-0 0 21 * * *}
+      - SUMMARY_HOUR=${SUMMARY_HOUR:-21}
       - ADMIN_CHAT_ID=${ADMIN_CHAT_ID}
       - LOKI_URL=${LOKI_URL}
       - LOKI_USERNAME=${LOKI_USERNAME}

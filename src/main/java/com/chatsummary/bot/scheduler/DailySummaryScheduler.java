@@ -64,21 +64,25 @@ public class DailySummaryScheduler {
 
     private boolean checkAndProcessChat(long chatId, ZonedDateTime now) {
         var config = chatConfigService.getChatConfig(chatId);
-        var cron = CronExpression.parse(config.getCron());
+        int summaryHour = config.getSummaryHour();
+        if (summaryHour < 0 || summaryHour > 23) {
+            summaryHour = 21;
+        }
+
         var lastProcessedInstant = config.getLastProcessedAt() == null
                 ? LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
                 : config.getLastProcessedAt();
         var lastProcessed = lastProcessedInstant.atZone(ZoneId.systemDefault());
 
         log.debug(
-                "Checking chat {} for scheduled summary (last processed: {}, cron: {})",
+                "Checking chat {} for scheduled summary (last processed: {}, hour: {})",
                 chatId,
                 lastProcessed,
-                config.getCron()
+                summaryHour
         );
 
-        var nextExecution = cron.next(lastProcessed);
-        if (nextExecution == null || nextExecution.isAfter(now)) {
+        var scheduledTimeToday = now.toLocalDate().atTime(summaryHour, 0).atZone(ZoneId.systemDefault());
+        if (now.isBefore(scheduledTimeToday) || !lastProcessed.isBefore(scheduledTimeToday)) {
             return false;
         }
 

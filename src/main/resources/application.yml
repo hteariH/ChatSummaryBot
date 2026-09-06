@@ -31,7 +31,7 @@ gemini:
 
 # Summary scheduler (default: daily at 21:00)
 summary:
-  cron: ${SUMMARY_CRON:0 0 21 * * *}
+  hour: ${SUMMARY_HOUR:21}
   admin-chat-id: ${ADMIN_CHAT_ID}
 
 # Photo processing (downscale before storing / sending to Gemini to bound input tokens)

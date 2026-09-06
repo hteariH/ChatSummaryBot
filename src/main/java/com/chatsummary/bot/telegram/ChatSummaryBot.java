@@ -56,6 +56,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     private static final Set<String> ADMIN_COMMANDS = Set.of(
             "/summary",
             "/setcron",
+            "/sethour",
+            "/settime",
             "/enable",
             "/disable",
             "/setlanguage",
@@ -232,6 +234,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
         switch (command) {
             case "/summary" -> handleSummaryCommand(chatId);
+            case "/sethour", "/settime" -> handleSetHourCommand(chatId, text);
             case "/setcron" -> handleSetCronCommand(chatId, text);
             case "/enable", "/disable" -> {
                 var enable = text.startsWith("/enable");
@@ -307,27 +310,56 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
         log.info("Updated monthly summary status for chat {}: {}", chatId, enabled);
     }
 
+    private void handleSetHourCommand(long chatId, String text) {
+        var parts = text.split(" ", 2);
+        if (parts.length < 2 || parts[1].isBlank()) {
+            sendMessage(chatId, "⚠️ Usage: `/sethour 21` (0-23, daily summary hour in UTC/system time)");
+            return;
+        }
+
+        var hourStr = parts[1].trim();
+        try {
+            int hour = Integer.parseInt(hourStr);
+            if (hour < 0 || hour > 23) {
+                sendMessage(chatId, "⚠️ Invalid hour. Please provide an integer between 0 and 23.");
+                return;
+            }
+            chatConfigService.saveChatConfig(chatId, hour);
+            sendMessage(chatId, String.format("✅ Summary schedule updated to daily at %02d:00", hour));
+            log.info("Updated summary hour for chat {}: {}", chatId, hour);
+        } catch (NumberFormatException e) {
+            sendMessage(chatId, "⚠️ Invalid hour format. Please provide a number from 0 to 23 (e.g. `/sethour 21`).");
+        } catch (Exception exception) {
+            log.error("Failed to save summary hour for chat {}", chatId, exception);
+            sendMessage(chatId, "⚠️ Failed to save summary hour. Please try again.");
+        }
+    }
+
     private void handleSetCronCommand(long chatId, String text) {
         var parts = text.split(" ", 2);
-        if (parts.length < 2) {
-            sendMessage(chatId, "⚠️ Usage: `/setcron 0 0 21 * * *` (seconds minutes hours day month day-of-week)");
+        if (parts.length < 2 || parts[1].isBlank()) {
+            sendMessage(chatId, "⚠️ `/setcron` is deprecated. Please use `/sethour <0-23>` (e.g., `/sethour 21`).");
             return;
         }
 
-        var cron = parts[1].trim();
-        if (!CronExpression.isValidExpression(cron)) {
-            sendMessage(chatId,
-                    "⚠️ Invalid cron expression. Please use the Spring/Quartz format: `sec min hour day month dow`.");
-            return;
-        }
-
+        var param = parts[1].trim();
         try {
-            chatConfigService.saveChatConfig(chatId, cron);
-            sendMessage(chatId, "✅ Summary schedule updated to: `" + cron + "`");
-            log.info("Updated cron for chat {}: {}", chatId, cron);
+            int hour;
+            if (param.matches("^\\d+$")) {
+                hour = Integer.parseInt(param);
+            } else {
+                hour = com.chatsummary.bot.service.ChatConfigMigrationService.extractHourFromCron(param, 21);
+            }
+            if (hour < 0 || hour > 23) {
+                sendMessage(chatId, "⚠️ Invalid hour. Please use `/sethour <0-23>` (e.g., `/sethour 21`).");
+                return;
+            }
+            chatConfigService.saveChatConfig(chatId, hour);
+            sendMessage(chatId, String.format("✅ Summary schedule updated to daily at %02d:00 (Note: please use `/sethour <0-23>`)", hour));
+            log.info("Updated summary hour via /setcron for chat {}: {}", chatId, hour);
         } catch (Exception exception) {
-            log.error("Failed to save cron for chat {}", chatId, exception);
-            sendMessage(chatId, "⚠️ Failed to save cron. Please try again.");
+            log.error("Failed to save schedule for chat {}", chatId, exception);
+            sendMessage(chatId, "⚠️ Failed to save schedule. Please use `/sethour <0-23>`.");
         }
     }
 

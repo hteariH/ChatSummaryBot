@@ -14,6 +14,15 @@ class ChatConfigTest {
         assertThat(config.getLanguage()).isEqualTo("English");
         assertThat(config.isEnabled()).isTrue();
         assertThat(config.isMonthlySummaryEnabled()).isFalse();
+        assertThat(config.getSummaryHour()).isEqualTo(21);
+    }
+
+    @Test
+    void constructorSetsChatIdAndHour() {
+        var config = new ChatConfig(-100L, 9);
+
+        assertThat(config.getChatId()).isEqualTo(-100L);
+        assertThat(config.getSummaryHour()).isEqualTo(9);
     }
 
     @Test

@@ -21,6 +21,7 @@ public final class ChatConfig {
     private long chatId;
 
     private String cron;
+    private int summaryHour = 21;
     private Instant lastProcessedAt;
     private int summaryCredits = 30;
     private String language = "English";
@@ -34,6 +35,11 @@ public final class ChatConfig {
     private String lastSummaryTailText;
     private Integer pendingFullSummaryMessageId;
     private String pendingFullSummaryText;
+
+    public ChatConfig(long chatId, int summaryHour) {
+        this.chatId = chatId;
+        this.summaryHour = summaryHour;
+    }
 
     public ChatConfig(long chatId, String cron) {
         this.chatId = chatId;

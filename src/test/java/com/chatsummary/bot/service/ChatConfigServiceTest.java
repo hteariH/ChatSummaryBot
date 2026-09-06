@@ -16,7 +16,7 @@ import org.mockito.Mockito;
 
 class ChatConfigServiceTest {
 
-    private static final String DEFAULT_CRON = "0 0 9 * * *";
+    private static final int DEFAULT_HOUR = 9;
     private static final long CHAT_ID = -100L;
 
     private ChatConfigRepository repository;
@@ -25,23 +25,23 @@ class ChatConfigServiceTest {
     @BeforeEach
     void setUp() {
         repository = Mockito.mock(ChatConfigRepository.class);
-        service = new ChatConfigService(repository, DEFAULT_CRON);
+        service = new ChatConfigService(repository, DEFAULT_HOUR);
     }
 
     @Test
-    void getChatConfigReturnsUnsavedDefaultWithDefaultCronWhenAbsent() {
+    void getChatConfigReturnsUnsavedDefaultWithDefaultHourWhenAbsent() {
         when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.empty());
 
         var config = service.getChatConfig(CHAT_ID);
 
         assertThat(config.getChatId()).isEqualTo(CHAT_ID);
-        assertThat(config.getCron()).isEqualTo(DEFAULT_CRON);
+        assertThat(config.getSummaryHour()).isEqualTo(DEFAULT_HOUR);
         verify(repository, never()).save(any());
     }
 
     @Test
     void getChatConfigReturnsPersistedConfigWhenPresent() {
-        var existing = new ChatConfig(CHAT_ID, "*/5 * * * * *");
+        var existing = new ChatConfig(CHAT_ID, 15);
         when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.of(existing));
 
         assertThat(service.getChatConfig(CHAT_ID)).isSameAs(existing);
@@ -49,7 +49,7 @@ class ChatConfigServiceTest {
 
     @Test
     void consumeSummaryCreditDecrementsAndPersists() {
-        var config = new ChatConfig(CHAT_ID, DEFAULT_CRON);
+        var config = new ChatConfig(CHAT_ID, DEFAULT_HOUR);
         config.setSummaryCredits(3);
         when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.of(config));
 
@@ -62,7 +62,7 @@ class ChatConfigServiceTest {
 
     @Test
     void consumeSummaryCreditFloorsAtZero() {
-        var config = new ChatConfig(CHAT_ID, DEFAULT_CRON);
+        var config = new ChatConfig(CHAT_ID, DEFAULT_HOUR);
         config.setSummaryCredits(0);
         when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.of(config));
 
@@ -74,7 +74,7 @@ class ChatConfigServiceTest {
 
     @Test
     void addSummaryCreditsIncrementsAndPersists() {
-        var config = new ChatConfig(CHAT_ID, DEFAULT_CRON);
+        var config = new ChatConfig(CHAT_ID, DEFAULT_HOUR);
         config.setSummaryCredits(5);
         when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.of(config));
 
@@ -96,13 +96,24 @@ class ChatConfigServiceTest {
     }
 
     @Test
-    void saveChatConfigUpdatesCronOnExistingRow() {
-        var existing = new ChatConfig(CHAT_ID, DEFAULT_CRON);
+    void saveChatConfigUpdatesHourOnExistingRow() {
+        var existing = new ChatConfig(CHAT_ID, DEFAULT_HOUR);
+        when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.of(existing));
+
+        service.saveChatConfig(CHAT_ID, 18);
+
+        assertThat(existing.getSummaryHour()).isEqualTo(18);
+        verify(repository).save(existing);
+    }
+
+    @Test
+    void saveChatConfigDeprecatedCronParsesHour() {
+        var existing = new ChatConfig(CHAT_ID, DEFAULT_HOUR);
         when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.of(existing));
 
         service.saveChatConfig(CHAT_ID, "0 30 8 * * *");
 
-        assertThat(existing.getCron()).isEqualTo("0 30 8 * * *");
+        assertThat(existing.getSummaryHour()).isEqualTo(8);
         verify(repository).save(existing);
     }
 }
