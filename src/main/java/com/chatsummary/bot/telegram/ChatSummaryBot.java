@@ -234,8 +234,8 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
 
         switch (command) {
             case "/summary" -> handleSummaryCommand(chatId);
-            case "/sethour", "/settime" -> handleSetHourCommand(chatId, text);
-            case "/setcron" -> handleSetCronCommand(chatId, text);
+//            case "/sethour", "/settime" -> handleSetHourCommand(chatId, text);
+//            case "/setcron" -> handleSetCronCommand(chatId, text);
             case "/enable", "/disable" -> {
                 var enable = text.startsWith("/enable");
                 chatConfigService.setEnabled(chatId, enable);
@@ -245,9 +245,9 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
                 log.info("{} chat {}", enable ? "Enabled" : "Disabled", chatId);
             }
             case "/setlanguage" -> handleSetLanguageCommand(chatId, text);
-            case "/setmonthly" -> handleSetMonthlyCommand(chatId, text);
-            case "/setprompt" -> handleSetPromptCommand(chatId, text);
-            case "/testlink" -> handleTestLink(chatId, text);
+//            case "/setmonthly" -> handleSetMonthlyCommand(chatId, text);
+//            case "/setprompt" -> handleSetPromptCommand(chatId, text);
+//            case "/testlink" -> handleTestLink(chatId, text);
             default -> throw new IllegalStateException("Admin command is not handled: " + command);
         }
 
