@@ -24,6 +24,13 @@ public class DailySummaryScheduler {
 
     private static final long GEMINI_THROTTLE_MILLIS = 2_000L * 60L;
 
+    /**
+     * How many consecutive failures a chat may rack up before its window is skipped. Without this
+     * the watermark never advances on failure and the chat is retried every tick forever, which
+     * burns a full Gemini call each time (and can exhaust the quota for every other chat).
+     */
+    static final int MAX_CONSECUTIVE_FAILURES = 3;
+
     // Overridable in tests to avoid real sleeps.
     long geminiThrottleMillis = GEMINI_THROTTLE_MILLIS;
 
@@ -94,8 +101,33 @@ public class DailySummaryScheduler {
         );
         if (processed) {
             chatConfigService.updateLastProcessedAt(chatId, now.toInstant());
+            chatConfigService.resetSummaryFailures(chatId);
+        } else {
+            giveUpAfterRepeatedFailures(chatId, now);
         }
         return true;
+    }
+
+    /**
+     * Advance the watermark past a chat that keeps failing, so a deterministic error (a dead chat
+     * id, an unparseable summary) stops re-running on every tick. Anything left behind is cleared
+     * by the next successful run.
+     */
+    private void giveUpAfterRepeatedFailures(long chatId, ZonedDateTime now) {
+        var failures = chatConfigService.recordSummaryFailure(chatId);
+        if (failures < MAX_CONSECUTIVE_FAILURES) {
+            return;
+        }
+
+        log.error("Chat {} failed {} consecutive scheduled summaries; skipping this window", chatId, failures);
+        chatConfigService.updateLastProcessedAt(chatId, now.toInstant());
+        chatConfigService.resetSummaryFailures(chatId);
+        adminNotificationService.notifyOnFailure(
+                chatId,
+                chatSummaryBot.getChatTitle(chatId),
+                "Scheduled Summary (skipped after %d consecutive failures)".formatted(failures),
+                new IllegalStateException("Giving up on this summary window; see earlier errors for the cause"),
+                true);
     }
 
     private boolean processSummary(long chatId, Instant since, String language, String customPrompt) {

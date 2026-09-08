@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
+import org.springframework.data.mongodb.repository.Update;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -18,4 +19,9 @@ public interface ChatMessageRepository extends MongoRepository<ChatMessage, Stri
 
     @Query(value = "{}", fields = "{ 'chatId': 1 }")
     List<ChatIdOnly> findAllChatIds();
+
+    /** Re-point every stored message of a chat at a new chat id (basic group → supergroup). */
+    @Query("{ 'chatId': ?0 }")
+    @Update("{ '$set': { 'chatId': ?1 } }")
+    long updateChatId(long oldChatId, long newChatId);
 }

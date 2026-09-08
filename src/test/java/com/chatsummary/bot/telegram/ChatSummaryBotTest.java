@@ -98,6 +98,9 @@ class ChatSummaryBotTest {
         // Signature can hide in a nested cause.
         assertThat(ChatSummaryBot.isChatGoneError(
                 new RuntimeException("wrapper", new RuntimeException("PEER_ID_INVALID")))).isTrue();
+        // The old id of a group that became a supergroup is dead for good, not a transient error.
+        assertThat(ChatSummaryBot.isChatGoneError(new RuntimeException(
+                "[400] Bad Request: group chat was upgraded to a supergroup chat"))).isTrue();
     }
 
     @Test

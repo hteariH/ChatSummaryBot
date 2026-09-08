@@ -33,6 +33,8 @@ public final class ChatConfig {
     private String lastSummaryText;
     private Integer lastSummaryTailMessageId;
     private String lastSummaryTailText;
+    /** Consecutive failed scheduled-summary attempts; reset on every successful delivery. */
+    private int consecutiveSummaryFailures;
     private Integer pendingFullSummaryMessageId;
     private String pendingFullSummaryText;
 

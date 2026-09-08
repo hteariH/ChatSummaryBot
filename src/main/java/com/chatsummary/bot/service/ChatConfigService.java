@@ -46,6 +46,43 @@ public class ChatConfigService {
         chatConfigRepository.save(config);
     }
 
+    /**
+     * Count one failed scheduled-summary attempt and return the new consecutive-failure total.
+     * The scheduler uses it to stop retrying a chat that fails deterministically.
+     */
+    public int recordSummaryFailure(long chatId) {
+        // Deliberately does not create a row: a send failure can mean the chat was just purged,
+        // and resurrecting its settings here would leave an orphan behind.
+        return chatConfigRepository.findByChatId(chatId)
+                .map(config -> {
+                    config.setConsecutiveSummaryFailures(config.getConsecutiveSummaryFailures() + 1);
+                    chatConfigRepository.save(config);
+                    return config.getConsecutiveSummaryFailures();
+                })
+                .orElse(0);
+    }
+
+    public void resetSummaryFailures(long chatId) {
+        var config = getChatConfig(chatId);
+        if (config.getConsecutiveSummaryFailures() == 0) {
+            return;
+        }
+        config.setConsecutiveSummaryFailures(0);
+        chatConfigRepository.save(config);
+    }
+
+    /**
+     * Re-point a chat's settings at a new chat id (basic group upgraded to a supergroup). If the
+     * new id already has a row, the stale one is dropped instead so the unique index holds.
+     */
+    public void migrateChatConfig(long oldChatId, long newChatId) {
+        if (chatConfigRepository.findByChatId(newChatId).isPresent()) {
+            chatConfigRepository.deleteByChatId(oldChatId);
+            return;
+        }
+        chatConfigRepository.updateChatId(oldChatId, newChatId);
+    }
+
     public List<ChatConfig> getAllConfigs() {
         return chatConfigRepository.findAll();
     }

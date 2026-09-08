@@ -75,6 +75,43 @@ class DailySummarySchedulerTest {
     }
 
     @Test
+    void failedDeliveryDoesNotAdvanceWatermarkUntilTheFailureLimitIsHit() throws InterruptedException {
+        when(messageService.getAllActiveChatIds()).thenReturn(Set.of(CHAT_ID));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
+        when(messageService.getMessagesSince(eq(CHAT_ID), any()))
+                .thenReturn(List.of(new ChatMessage(CHAT_ID, 1, "user", "hello")));
+        when(geminiSummaryService.summarize(any(), anyString(), any())).thenReturn("summary text");
+        when(adService.hasFullSummaryAccess(CHAT_ID)).thenReturn(true);
+        when(chatSummaryBot.getChatTitle(anyLong())).thenReturn("Test Chat");
+        // Telegram keeps rejecting the send (e.g. the group was upgraded to a supergroup).
+        when(chatSummaryBot.sendSummaryMessage(eq(CHAT_ID), anyString())).thenReturn(null);
+        when(chatConfigService.recordSummaryFailure(CHAT_ID)).thenReturn(1, 2, DailySummaryScheduler.MAX_CONSECUTIVE_FAILURES);
+
+        scheduler.sendScheduledSummaries();
+        scheduler.sendScheduledSummaries();
+        verify(chatConfigService, never()).updateLastProcessedAt(eq(CHAT_ID), any());
+
+        // The third failure gives up on the window so the chat stops burning a Gemini call per tick.
+        scheduler.sendScheduledSummaries();
+        verify(chatConfigService).updateLastProcessedAt(eq(CHAT_ID), any());
+        verify(adminNotificationService).notifyOnFailure(
+                eq(CHAT_ID), anyString(), anyString(), any(IllegalStateException.class), eq(true));
+    }
+
+    @Test
+    void successfulSummaryResetsTheFailureCounter() throws InterruptedException {
+        when(messageService.getAllActiveChatIds()).thenReturn(Set.of(CHAT_ID));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
+        mockSuccessfulPipeline();
+
+        scheduler.sendScheduledSummaries();
+
+        verify(chatConfigService).updateLastProcessedAt(eq(CHAT_ID), any());
+        verify(chatConfigService).resetSummaryFailures(CHAT_ID);
+        verify(chatConfigService, never()).recordSummaryFailure(anyLong());
+    }
+
+    @Test
     void brokenConfigForOneChatDoesNotBlockOtherChats() throws InterruptedException {
         long brokenChatId = -100L;
         Set<Long> chatIds = new LinkedHashSet<>(List.of(brokenChatId, CHAT_ID));

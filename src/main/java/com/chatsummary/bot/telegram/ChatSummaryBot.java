@@ -52,7 +52,10 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             "bot is not a member",
             "bot was blocked",
             "group chat was deactivated",
-            "peer_id_invalid");
+            "peer_id_invalid",
+            // A basic group upgraded to a supergroup keeps living under a brand new id; the old
+            // one is dead for good, so retrying it forever only burns Gemini quota.
+            "upgraded to a supergroup");
     private static final Set<String> ADMIN_COMMANDS = Set.of(
             "/summary",
             "/setcron",
@@ -126,6 +129,13 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             return;
         }
 
+        // Telegram upgraded this basic group to a supergroup: the chat continues under a new id,
+        // and everything still stored under the old one would be undeliverable from now on.
+        if (message.getMigrateToChatId() != null) {
+            migrateChat(message.getChatId(), message.getMigrateToChatId());
+            return;
+        }
+
         var chatId = message.getChatId();
         var senderName = displayName(message.getFrom(), "Unknown");
 
@@ -189,6 +199,19 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             // The bot was removed/kicked/blocked: drop the chat's stored data so the schedulers
             // stop retrying (and re-notifying) forever for a chat we can no longer post to.
             purgeRemovedChat(member.getChat().getId(), "membership change → " + newStatus);
+        }
+    }
+
+    /** Move a chat's stored messages, summaries and settings to the id it was upgraded to. */
+    public void migrateChat(long oldChatId, long newChatId) {
+        log.info("Chat {} was upgraded to supergroup {}; migrating stored data", oldChatId, newChatId);
+        try {
+            messageService.migrateChat(oldChatId, newChatId);
+            chatConfigService.migrateChatConfig(oldChatId, newChatId);
+        } catch (Exception exception) {
+            log.error("Failed to migrate chat {} to {}", oldChatId, newChatId, exception);
+            adminNotificationService.notifyOnFailure(
+                    oldChatId, getChatTitle(newChatId), "Supergroup migration", exception);
         }
     }
 

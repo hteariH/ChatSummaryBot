@@ -72,6 +72,18 @@ public class MessageService {
         log.info("Purged all stored messages and daily summaries for chat {}", chatId);
     }
 
+    /**
+     * Move every stored message and daily summary from {@code oldChatId} to {@code newChatId}.
+     * Used when Telegram upgrades a basic group to a supergroup: the chat keeps living under a
+     * brand new id, and anything still filed under the old one becomes unreachable.
+     */
+    public void migrateChat(long oldChatId, long newChatId) {
+        var movedMessages = chatMessageRepository.updateChatId(oldChatId, newChatId);
+        var movedSummaries = dailySummaryRepository.updateChatId(oldChatId, newChatId);
+        log.info("Migrated chat {} -> {}: {} messages, {} daily summaries",
+                oldChatId, newChatId, movedMessages, movedSummaries);
+    }
+
     public Set<Long> getAllActiveChatIds() {
         return chatMessageRepository.findAllChatIds()
                 .stream()
