@@ -80,6 +80,7 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     @Autowired
     private GeneralLLMService llmService;
 
+    @Autowired
     public ChatSummaryBot(
             @Value("${telegram.bot.token}") String botToken,
             MessageService messageService,
@@ -87,13 +88,25 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             ChatConfigService chatConfigService,
             AdminNotificationService adminNotificationService,
             AdService adService) {
+        this(botToken, messageService, geminiSummaryService, chatConfigService, adminNotificationService, adService,
+                new OkHttpTelegramClient(botToken));
+    }
+
+    ChatSummaryBot(
+            String botToken,
+            MessageService messageService,
+            GeminiSummaryService geminiSummaryService,
+            ChatConfigService chatConfigService,
+            AdminNotificationService adminNotificationService,
+            AdService adService,
+            OkHttpTelegramClient telegramClient) {
         this.botToken = botToken;
         this.messageService = messageService;
         this.geminiSummaryService = geminiSummaryService;
         this.chatConfigService = chatConfigService;
         this.adminNotificationService = adminNotificationService;
         this.adService = adService;
-        this.telegramClient = new OkHttpTelegramClient(botToken);
+        this.telegramClient = telegramClient;
     }
 
     @Override
@@ -467,12 +480,12 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
     }
 
     private SentMessageResult sendMessageReturningResult(long chatId, String text, int maxChunkLength) {
+        Integer firstMessageId = null;
+        Integer lastMessageId = null;
+        String lastChunk = null;
         try {
             String cleanText = cleanHtml(text);
             log.info("Sending message to chat {}: {}", chatId, cleanText);
-            Integer firstMessageId = null;
-            Integer lastMessageId = null;
-            String lastChunk = null;
             for (var chunk : splitMessage(cleanText, maxChunkLength)) {
                 var message = SendMessage.builder()
                         .chatId(Long.toString(chatId))
@@ -488,6 +501,12 @@ public class ChatSummaryBot implements SpringLongPollingBot, LongPollingSingleTh
             }
             return new SentMessageResult(firstMessageId, lastMessageId, lastChunk);
         } catch (Exception exception) {
+            if (firstMessageId != null) {
+                // Earlier chunks already reached the chat. Reporting a failure here would make the
+                // scheduler regenerate and re-send the whole summary on every tick.
+                log.error("Partially delivered message to chat {}; later chunks were dropped", chatId, exception);
+                return new SentMessageResult(firstMessageId, lastMessageId, lastChunk);
+            }
             log.error("Failed to send message to chat {}", chatId, exception);
             // Safety net for a missed my_chat_member update (e.g. bot was offline when kicked):
             // if the send failed because the chat is gone, purge it so we stop retrying.

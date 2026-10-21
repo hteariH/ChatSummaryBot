@@ -93,6 +93,9 @@ public class DailySummaryScheduler {
             return false;
         }
 
+        // Without a row the failure counter below can never reach the cap, and an unconfigured
+        // chat that keeps failing would be retried (re-sending to it) on every tick forever.
+        chatConfigService.ensureChatConfig(chatId);
         var processed = processSummary(
                 chatId,
                 lastProcessedInstant,

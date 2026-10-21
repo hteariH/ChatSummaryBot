@@ -26,6 +26,16 @@ public class ChatConfigService {
                 .orElseGet(() -> new ChatConfig(chatId, defaultSummaryHour));
     }
 
+    /**
+     * Persist the default config if the chat has no row yet. The scheduler calls this before an
+     * attempt so {@link #recordSummaryFailure} has a row to count on.
+     */
+    public void ensureChatConfig(long chatId) {
+        if (chatConfigRepository.findByChatId(chatId).isEmpty()) {
+            chatConfigRepository.save(new ChatConfig(chatId, defaultSummaryHour));
+        }
+    }
+
     public void saveChatConfig(long chatId, int summaryHour) {
         var config = chatConfigRepository.findByChatId(chatId)
                 .orElseGet(() -> new ChatConfig(chatId, summaryHour));

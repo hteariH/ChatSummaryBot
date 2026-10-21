@@ -116,4 +116,25 @@ class ChatConfigServiceTest {
         assertThat(existing.getSummaryHour()).isEqualTo(8);
         verify(repository).save(existing);
     }
+
+    @Test
+    void ensureChatConfigPersistsDefaultWhenAbsent() {
+        when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.empty());
+
+        service.ensureChatConfig(CHAT_ID);
+
+        var captor = ArgumentCaptor.forClass(ChatConfig.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getChatId()).isEqualTo(CHAT_ID);
+        assertThat(captor.getValue().getSummaryHour()).isEqualTo(DEFAULT_HOUR);
+    }
+
+    @Test
+    void ensureChatConfigLeavesExistingRowAlone() {
+        when(repository.findByChatId(CHAT_ID)).thenReturn(Optional.of(new ChatConfig(CHAT_ID, 15)));
+
+        service.ensureChatConfig(CHAT_ID);
+
+        verify(repository, never()).save(any());
+    }
 }

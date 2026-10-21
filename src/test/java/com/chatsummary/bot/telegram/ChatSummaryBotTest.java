@@ -1,8 +1,10 @@
 package com.chatsummary.bot.telegram;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.chatsummary.bot.service.AdService;
 import com.chatsummary.bot.service.AdminNotificationService;
@@ -12,6 +14,10 @@ import com.chatsummary.bot.service.MessageService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
 class ChatSummaryBotTest {
 
@@ -129,5 +135,35 @@ class ChatSummaryBotTest {
         verify(messageService).purgeChat(-1003427022824L);
         verify(chatConfigService).deleteChatConfig(-1003427022824L);
         verify(adminNotificationService).notifyChatRemoved(-1003427022824L, "kicked");
+    }
+
+    @Test
+    void sendSummaryMessageReportsPartialDeliveryWhenALaterChunkFails() throws Exception {
+        var telegramClient = mock(OkHttpTelegramClient.class);
+        var delivered = new Message();
+        delivered.setMessageId(42);
+        // First chunk lands, the second one is rejected (e.g. a 429 or an HTML parse error).
+        when(telegramClient.execute(any(SendMessage.class)))
+                .thenReturn(delivered)
+                .thenThrow(new TelegramApiRequestException("[429] Too Many Requests"));
+        var bot = new ChatSummaryBot(
+                "token",
+                mock(MessageService.class),
+                mock(GeminiSummaryService.class),
+                mock(ChatConfigService.class),
+                mock(AdminNotificationService.class),
+                mock(AdService.class),
+                telegramClient
+        );
+        var maxChunkLength = ChatSummaryBot.TELEGRAM_MAX_MESSAGE_LENGTH
+                - ChatSummaryBot.SUMMARY_NAVIGATION_LINK_RESERVE;
+
+        var result = bot.sendSummaryMessage(-1001605482413L, "x".repeat(maxChunkLength + 25));
+
+        // Something already reached the chat, so the caller must treat it as delivered: reporting
+        // null here makes the scheduler regenerate and re-send the summary on every tick.
+        assertThat(result).isNotNull();
+        assertThat(result.firstMessageId()).isEqualTo(42);
+        assertThat(result.lastMessageId()).isEqualTo(42);
     }
 }

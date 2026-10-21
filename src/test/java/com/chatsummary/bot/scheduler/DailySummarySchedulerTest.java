@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -184,5 +185,21 @@ class DailySummarySchedulerTest {
 
         verify(geminiSummaryService, never()).summarize(any(), anyString(), any());
         verify(chatConfigService).updateLastProcessedAt(eq(CHAT_ID), any());
+    }
+
+    @Test
+    void attemptPersistsConfigFirstSoTheFailureCapCanCount() throws InterruptedException {
+        when(messageService.getAllActiveChatIds()).thenReturn(Set.of(CHAT_ID));
+        when(chatConfigService.getChatConfig(CHAT_ID)).thenReturn(dueConfig(CHAT_ID, DUE_HOUR));
+        mockSuccessfulPipeline();
+        when(chatSummaryBot.sendSummaryMessage(eq(CHAT_ID), anyString())).thenReturn(null);
+
+        scheduler.sendScheduledSummaries();
+
+        // A chat nobody configured has no row; recordSummaryFailure would then always return 0
+        // and the chat would be retried (and re-sent to) on every tick forever.
+        var order = inOrder(chatConfigService);
+        order.verify(chatConfigService).ensureChatConfig(CHAT_ID);
+        order.verify(chatConfigService).recordSummaryFailure(CHAT_ID);
     }
 }
