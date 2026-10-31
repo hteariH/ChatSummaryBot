@@ -157,22 +157,49 @@ public class GeminiSummaryService {
      * Extracts the response text, or classifies why it is empty. {@code MAX_TOKENS} means the model
      * ran out of output budget (usually on thinking) and produced no answer — deterministic for the
      * same input, so a {@link GeminiTruncatedResponseException} is thrown and <b>not</b> retried to
-     * avoid burning quota. Anything else empty is treated as a transient
-     * {@link GeminiEmptyResponseException} and retried.
+     * avoid burning quota. A prompt rejected by the content filter ({@code promptFeedback.blockReason},
+     * no candidates at all) is equally deterministic and throws a non-retried
+     * {@link GeminiBlockedResponseException}. Anything else empty is treated as a transient
+     * {@link GeminiEmptyResponseException} and retried. The exception message carries the finish /
+     * block reason so the admin failure alert shows <i>why</i> the response was empty.
      */
-    private String requireText(GenerateContentResponse response, String operation) {
+    static String requireText(GenerateContentResponse response, String operation) {
         var result = response.text();
-        if (result != null) {
+        if (result != null && !result.isBlank()) {
             return result;
         }
         var finishReason = response.finishReason();
-        log.warn("Gemini returned no text for {} (finishReason={})", operation, finishReason);
+        var details = describeEmptyResponse(response);
+        log.warn("Gemini returned no text for {} ({})", operation, details);
+        var blockReason = response.promptFeedback().flatMap(feedback -> feedback.blockReason());
+        if (blockReason.isPresent()) {
+            throw new GeminiBlockedResponseException(
+                    "Gemini blocked the prompt for " + operation + " (" + details + ")");
+        }
         if (finishReason.knownEnum() == FinishReason.Known.MAX_TOKENS) {
             throw new GeminiTruncatedResponseException(
                     "Gemini hit MAX_TOKENS with no visible text for " + operation
                             + " — raise gemini.max-output-tokens or cap gemini.thinking-budget");
         }
-        throw new GeminiEmptyResponseException("Gemini returned empty response for " + operation);
+        throw new GeminiEmptyResponseException(
+                "Gemini returned empty response for " + operation + " (" + details + ")");
+    }
+
+    private static String describeEmptyResponse(GenerateContentResponse response) {
+        var details = new ArrayList<String>();
+        details.add("finishReason=" + response.finishReason());
+        response.candidates().filter(list -> !list.isEmpty())
+                .flatMap(list -> list.getFirst().finishMessage())
+                .ifPresent(message -> details.add("finishMessage=" + message));
+        response.candidates().ifPresentOrElse(
+                list -> details.add("candidates=" + list.size()),
+                () -> details.add("candidates=0"));
+        response.promptFeedback().ifPresent(feedback -> {
+            feedback.blockReason().ifPresent(reason -> details.add("blockReason=" + reason));
+            feedback.blockReasonMessage().ifPresent(message -> details.add("blockReasonMessage=" + message));
+        });
+        response.modelVersion().ifPresent(model -> details.add("model=" + model));
+        return String.join(", ", details);
     }
 
     @Retryable(
