@@ -120,7 +120,7 @@ public class GeminiSummaryService {
      * skipped, the last such exception is rethrown (it is not retryable, so the caller does not keep
      * hammering an exhausted quota). Which fallback model ultimately answered is logged at INFO.
      */
-    private GenerateContentResponse generateContent(Content content) {
+    GenerateContentResponse generateContent(Content content) {
         var config = buildConfig();
         ClientException lastSkippable = null;
         for (int i = 0; i < models.size(); i++) {
@@ -242,6 +242,34 @@ public class GeminiSummaryService {
                 customPrompt == null || customPrompt.isBlank() ? "" : "Additional instructions: " + customPrompt
         );
 
+        var chatId = messages.getFirst().chatId();
+        var parts = buildTranscriptParts(systemPrompt, messages, true);
+        var response = generateContent(Content.builder().parts(parts).build());
+        reportTokenUsage("summary", chatId, response);
+        try {
+            return requireText(response, "chat summary");
+        } catch (GeminiBlockedResponseException blocked) {
+            var textOnlyParts = buildTranscriptParts(systemPrompt, messages, false);
+            if (textOnlyParts.size() == parts.size()) {
+                // Nothing but text was sent, so dropping media cannot change the verdict.
+                throw blocked;
+            }
+            // The content filter usually trips on an image / voice / video note. Re-ask with the
+            // text transcript only, so the chat gets a summary instead of a skipped window.
+            log.warn("Gemini blocked the multimodal prompt for chat {}, retrying text-only: {}",
+                    chatId, blocked.getMessage());
+            var textOnlyResponse = generateContent(Content.builder().parts(textOnlyParts).build());
+            reportTokenUsage("summary (text-only fallback)", chatId, textOnlyResponse);
+            return requireText(textOnlyResponse, "chat summary (text-only fallback)");
+        }
+    }
+
+    /**
+     * Builds the multimodal transcript: the system prompt, one text part per message, each
+     * followed by its media. With {@code includeMedia == false} attachments are replaced by a
+     * {@code [media omitted]} marker, so the result is pure text.
+     */
+    private List<Part> buildTranscriptParts(String systemPrompt, List<ChatMessage> messages, boolean includeMedia) {
         var parts = new ArrayList<Part>();
         parts.add(Part.fromText(systemPrompt));
 
@@ -253,7 +281,13 @@ public class GeminiSummaryService {
                     message.senderName(),
                     message.text()
             );
+            if (!includeMedia && !message.attachments().isEmpty()) {
+                messageText += " [media omitted]";
+            }
             parts.add(Part.fromText(messageText));
+            if (!includeMedia) {
+                continue;
+            }
 
             for (var attachment : message.attachments()) {
                 if (attachment.data() != null) {
@@ -268,14 +302,7 @@ public class GeminiSummaryService {
         }
 
         parts.add(Part.fromText("--- End of Transcript ---"));
-
-        var content = Content.builder()
-                .parts(parts)
-                .build();
-
-        var response = generateContent(content);
-        reportTokenUsage("summary", messages.getFirst().chatId(), response);
-        return requireText(response, "chat summary");
+        return parts;
     }
 
     private void reportTokenUsage(String operation, long chatId, GenerateContentResponse response) {
